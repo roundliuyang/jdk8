@@ -408,10 +408,13 @@ public class Proxy implements java.io.Serializable {
      */
     private static Class<?> getProxyClass0(ClassLoader loader,
                                            Class<?>... interfaces) {
+
+        // 接口数量不能大于 65535
         if (interfaces.length > 65535) {
             throw new IllegalArgumentException("interface limit exceeded");
         }
 
+        // 先尝试从 proxyClassCache 缓存中获取对应的代理类，如果不存在则通过 ProxyClassFactory 函数创建一个代理类
         // If the proxy class defined by the given loader implementing
         // the given interfaces exists, this will simply return the cached copy;
         // otherwise, it will create the proxy class via the ProxyClassFactory
@@ -566,8 +569,12 @@ public class Proxy implements java.io.Serializable {
         public Class<?> apply(ClassLoader loader, Class<?>[] interfaces) {
 
             Map<Class<?>, Boolean> interfaceSet = new IdentityHashMap<>(interfaces.length);
+            /*
+             * 遍历需要实现的接口，进行校验
+             */
             for (Class<?> intf : interfaces) {
                 /*
+                 * 校验该接口是在存在这个 ClassLoader 中
                  * Verify that the class loader resolves the name of this
                  * interface to the same Class object.
                  */
@@ -581,6 +588,7 @@ public class Proxy implements java.io.Serializable {
                         intf + " is not visible from class loader");
                 }
                 /*
+                 * 校验是否真的是接口（因为入参也可以不传接口）
                  * Verify that the Class object actually represents an
                  * interface.
                  */
@@ -601,6 +609,8 @@ public class Proxy implements java.io.Serializable {
             int accessFlags = Modifier.PUBLIC | Modifier.FINAL;
 
             /*
+             * 遍历需要实现的接口，判断是否存在非 `public` 的接口,如果存在，则记录下来，并记录所在的包名
+             * 如果存在非 `public` 的接口，且还存在其他包路径下的接口，则抛出异常
              * Record the package of a non-public proxy interface so that the
              * proxy class will be defined in the same package.  Verify that
              * all non-public proxy interfaces are in the same package.
@@ -627,17 +637,21 @@ public class Proxy implements java.io.Serializable {
             }
 
             /*
+             * 生成一个代理类的名称，`com.sun.proxy.$Proxy` + 唯一数字（从 0 开始递增）
+             * 对于非 `public` 的接口，这里的名前缀就取原接口包名了，因为不是 `public` 修饰需要保证可访问
              * Choose a name for the proxy class to generate.
              */
             long num = nextUniqueNumber.getAndIncrement();
             String proxyName = proxyPkg + proxyClassNamePrefix + num;
 
             /*
+             * 根据代理类的名称、需要实现的接口以及修饰符生成一个字节数组
              * Generate the specified proxy class.
              */
             byte[] proxyClassFile = ProxyGenerator.generateProxyClass(
                 proxyName, interfaces, accessFlags);
             try {
+                // 根据代理类对应的字节数组创建一个 Class 对象
                 return defineClass0(loader, proxyName,
                                     proxyClassFile, 0, proxyClassFile.length);
             } catch (ClassFormatError e) {
@@ -654,6 +668,10 @@ public class Proxy implements java.io.Serializable {
     }
 
     /**
+     * 这个方法的逻辑不复杂，获取到代理类的 Class 对象，然后通过构造器创建一个代理对象，构造器的入参就是 InvocationHandler 的实现类。
+     * 因为代理类会继承 Proxy这个类，在 Proxy 中就有一个 Proxy(InvocationHandler h) 构造方法，所以可以获取到对应的构造器。
+     * 其中获取代理对象的 Class 对象（生成一个代理类）调用 getProxyClass0(ClassLoader loader, Class<?>... interfaces) 方法。
+     *
      * Returns an instance of a proxy class for the specified interfaces
      * that dispatches method invocations to the specified invocation
      * handler.
@@ -704,6 +722,7 @@ public class Proxy implements java.io.Serializable {
                                           InvocationHandler h)
         throws IllegalArgumentException
     {
+        // InvocationHandler 不能为空
         Objects.requireNonNull(h);
 
         final SecurityManager sm = System.getSecurityManager();
@@ -714,6 +733,7 @@ public class Proxy implements java.io.Serializable {
         /*
          * Look up or generate the designated proxy class.
          */
+        // 获得与指定类装载器和一组接口相关的代理类类型对象
         Class<?> cl = getProxyClass0(loader, interfaces);
 
         /*
@@ -721,11 +741,13 @@ public class Proxy implements java.io.Serializable {
          */
         try {
             if (sm != null) {
+                // 安全检测，检测是否能够创建对象
                 checkNewProxyPermission(Reflection.getCallerClass(), cl);
             }
-
+            // 获取代理类的构造器（入参为 InvocationHandler）
             final Constructor<?> cons = cl.getConstructor(constructorParams);
             final InvocationHandler ih = h;
+            // 设置为可访问
             if (!Modifier.isPublic(cl.getModifiers())) {
                 AccessController.doPrivileged(new PrivilegedAction<Void>() {
                     public Void run() {
@@ -734,6 +756,7 @@ public class Proxy implements java.io.Serializable {
                     }
                 });
             }
+            // 生成代理类的实例并把InvocationHandlerImpl的实例传给它的构造方法
             return cons.newInstance(new Object[]{h});
         } catch (IllegalAccessException|InstantiationException e) {
             throw new InternalError(e.toString(), e);
