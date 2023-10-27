@@ -55,7 +55,10 @@ public class AtomicInteger extends Number implements java.io.Serializable {
     private static final long serialVersionUID = 6214790243416807050L;
 
     // setup to use Unsafe.compareAndSwapInt for updates
+    // Unsafe对象，只能在Boostrap ClassLoader下才能被创建
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+
+    // 字段value在AtomicInteger对象中的偏移量
     private static final long valueOffset;
 
     static {
