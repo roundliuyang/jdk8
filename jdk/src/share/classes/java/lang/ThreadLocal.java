@@ -157,16 +157,21 @@ public class ThreadLocal<T> {
      * @return the current thread's value of this thread-local
      */
     public T get() {
+        // 返回当前 ThreadLocal 所在的线程
         Thread t = Thread.currentThread();
+        // 从线程中拿到 ThreadLocalMap
         ThreadLocalMap map = getMap(t);
         if (map != null) {
+            // 从 map 中拿到 entry
             ThreadLocalMap.Entry e = map.getEntry(this);
+            // 如果不为空，读取当前 ThreadLocal 中保存的值
             if (e != null) {
                 @SuppressWarnings("unchecked")
                 T result = (T)e.value;
                 return result;
             }
         }
+        // 若 map 为空，则对当前线程的 ThreadLocal 进行初始化，最后返回当前的 ThreadLocal 对象关联的初值，即 value
         return setInitialValue();
     }
 
@@ -188,6 +193,7 @@ public class ThreadLocal<T> {
     }
 
     /**
+     * 为当前 ThreadLocal 对象关联 value 值
      * Sets the current thread's copy of this thread-local variable
      * to the specified value.  Most subclasses will have no need to
      * override this method, relying solely on the {@link #initialValue}
@@ -197,11 +203,15 @@ public class ThreadLocal<T> {
      *        this thread-local.
      */
     public void set(T value) {
+        // 返回当前 ThreadLocal 所在的线程
         Thread t = Thread.currentThread();
+        // 返回当前线程持有的map
         ThreadLocalMap map = getMap(t);
         if (map != null)
+            // 返回当前 ThreadLocal 所在的线程
             map.set(this, value);
         else
+            // 否则，需要为当前线程初始化 ThreadLocalMap，并存储键值对 <this, firstValue>
             createMap(t, value);
     }
 
@@ -298,6 +308,7 @@ public class ThreadLocal<T> {
     static class ThreadLocalMap {
 
         /**
+         * 键值对实体的存储结构
          * The entries in this hash map extend WeakReference, using
          * its main ref field as the key (which is always a
          * ThreadLocal object).  Note that null keys (i.e. entry.get()
@@ -306,9 +317,17 @@ public class ThreadLocal<T> {
          * as "stale entries" in the code that follows.
          */
         static class Entry extends WeakReference<ThreadLocal<?>> {
-            /** The value associated with this ThreadLocal. */
+            /**
+             * 当前线程关联的 value，这个 value 并没有用弱引用追踪
+             * The value associated with this ThreadLocal.
+             */
             Object value;
 
+            /**
+             * 构造键值对
+             * @param k k 作 key,作为 key 的 ThreadLocal 会被包装为一个弱引用
+             * @param v v 作 value
+             */
             Entry(ThreadLocal<?> k, Object v) {
                 super(k);
                 value = v;
@@ -316,6 +335,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 初始容量，必须为 2 的幂
          * The initial capacity -- MUST be a power of two.
          */
         private static final int INITIAL_CAPACITY = 16;
@@ -327,16 +347,19 @@ public class ThreadLocal<T> {
         private Entry[] table;
 
         /**
+         * ThreadLocalMap 元素数量
          * The number of entries in the table.
          */
         private int size = 0;
 
         /**
+         * 扩容的阈值，默认是数组大小的三分之二
          * The next size value at which to resize.
          */
         private int threshold; // Default to 0
 
         /**
+         * 设置扩容阙值
          * Set the resize threshold to maintain at worst a 2/3 load factor.
          */
         private void setThreshold(int len) {
@@ -446,6 +469,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 这段代码是ThreadLocal类中的set方法的实现，用于将键值对放入线程本地变量的表中。在处理哈希冲突时，它使用线性探测的方法来寻找合适的插入位置。
          * Set the value associated with key.
          *
          * @param key the thread local object
@@ -458,26 +482,31 @@ public class ThreadLocal<T> {
             // it is to replace existing ones, in which case, a fast
             // path would fail more often than not.
 
+            // 这里获取ThreadLocal对象的哈希码，并使用位运算将其映射到数组table的索引位置
             Entry[] tab = table;
             int len = tab.length;
             int i = key.threadLocalHashCode & (len-1);
 
+            // 这是一个循环，用于在哈希槽中查找ThreadLocal对象。循环会一直执行，直到找到匹配的ThreadLocal对象或找到一个空槽。
             for (Entry e = tab[i];
                  e != null;
                  e = tab[i = nextIndex(i, len)]) {
                 ThreadLocal<?> k = e.get();
 
+                // 在循环内部，检查当前槽中的ThreadLocal对象。如果找到了匹配的ThreadLocal对象（k == key），则更新对应的值。
                 if (k == key) {
                     e.value = value;
                     return;
                 }
 
+                // 如果当前槽中的ThreadLocal对象为null，说明该槽中的条目已经过期（可能被垃圾回收），则调用replaceStaleEntry方法替换过期的条目。
                 if (k == null) {
                     replaceStaleEntry(key, value, i);
                     return;
                 }
             }
 
+            // 如果在循环中没有找到匹配的ThreadLocal对象，就在当前位置创建一个新的Entry对象，并递增size。然后检查是否需要清理一些过期的槽，以及是否需要进行重新哈希操作。
             tab[i] = new Entry(key, value);
             int sz = ++size;
             if (!cleanSomeSlots(i, sz) && sz >= threshold)
