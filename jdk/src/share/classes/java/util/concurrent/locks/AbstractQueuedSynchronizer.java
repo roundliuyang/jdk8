@@ -41,6 +41,9 @@ import java.util.Date;
 import sun.misc.Unsafe;
 
 /**
+ * AQS ，AbstractQueuedSynchronizer ，即队列同步器。它是构建锁或者其他同步组件的基础框架（如 ReentrantLock、ReentrantReadWriteLock、Semaphore 等），
+ * J.U.C 并发包的作者（Doug Lea）期望它能够成为实现大部分同步需求的基础。
+ *
  * Provides a framework for implementing blocking locks and related
  * synchronizers (semaphores, events, etc) that rely on
  * first-in-first-out (FIFO) wait queues.  This class is designed to
@@ -528,11 +531,18 @@ public abstract class AbstractQueuedSynchronizer
     private transient volatile Node tail;
 
     /**
+     * 同步状态
+     * •当 state > 0 时，表示已经获取了锁
+     * •当 state = 0 时，表示释放了锁
      * The synchronization state.
+     * •#getState()
+     * •#setState(int newState)
+     * •#compareAndSetState(int expect, int update)
      */
     private volatile int state;
 
     /**
+     * 返回同步状态的当前值
      * Returns the current value of synchronization state.
      * This operation has memory semantics of a {@code volatile} read.
      * @return current state value
@@ -542,6 +552,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 设置当前同步状态
      * Sets the value of synchronization state.
      * This operation has memory semantics of a {@code volatile} write.
      * @param newState the new state value
@@ -551,6 +562,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 使用 CAS 设置当前状态，该方法能够保证状态设置的原子性
      * Atomically sets synchronization state to the given updated
      * value if the current state value equals the expected value.
      * This operation has memory semantics of a {@code volatile} read
@@ -1047,6 +1059,7 @@ public abstract class AbstractQueuedSynchronizer
     // Main exported methods
 
     /**
+     * 独占式获取同步状态，获取同步状态成功后，其他线程需要等待该线程释放同步状态才能获取同步状态
      * Attempts to acquire in exclusive mode. This method should query
      * if the state of the object permits it to be acquired in the
      * exclusive mode, and if so to acquire it.
@@ -1077,6 +1090,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 独占式释放同步状态
      * Attempts to set the state to reflect a release in exclusive
      * mode.
      *
@@ -1103,6 +1117,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式获取同步状态，返回值大于等于 0 ，则表示获取成功；否则，获取失败
      * Attempts to acquire in shared mode. This method should query if
      * the state of the object permits it to be acquired in the shared
      * mode, and if so to acquire it.
@@ -1139,6 +1154,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式释放同步状态
      * Attempts to set the state to reflect a release in shared mode.
      *
      * <p>This method is always invoked by the thread performing release.
@@ -1164,6 +1180,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 当前同步器是否在独占式模式下被线程占用，一般该方法表示是否被当前线程所独占
      * Returns {@code true} if synchronization is held exclusively with
      * respect to the current (calling) thread.  This method is invoked
      * upon each call to a non-waiting {@link ConditionObject} method.
@@ -1183,6 +1200,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 独占式获取同步状态。如果当前线程获取同步状态成功，则由该方法返回；否则，将会进入同步队列等待。该方法将会调用可重写的 #tryAcquire(int arg) 方法
      * Acquires in exclusive mode, ignoring interrupts.  Implemented
      * by invoking at least once {@link #tryAcquire},
      * returning on success.  Otherwise the thread is queued, possibly
@@ -1201,6 +1219,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 与 #acquire(int arg) 相同，但是该方法响应中断。当前线程为获取到同步状态而进入到同步队列中，如果当前线程被中断，则该方法会抛出InterruptedException 异常并返回。
      * Acquires in exclusive mode, aborting if interrupted.
      * Implemented by first checking interrupt status, then invoking
      * at least once {@link #tryAcquire}, returning on
@@ -1223,6 +1242,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 超时获取同步状态。如果当前线程在 nanos 时间内没有获取到同步状态，那么将会返回 false ，已经获取则返回 true 。
      * Attempts to acquire in exclusive mode, aborting if interrupted,
      * and failing if the given timeout elapses.  Implemented by first
      * checking interrupt status, then invoking at least once {@link
@@ -1248,6 +1268,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 独占式释放同步状态，该方法会在释放同步状态之后，将同步队列中第一个节点包含的线程唤醒
      * Releases in exclusive mode.  Implemented by unblocking one or
      * more threads if {@link #tryRelease} returns true.
      * This method can be used to implement method {@link Lock#unlock}.
@@ -1268,6 +1289,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式获取同步状态，如果当前线程未获取到同步状态，将会进入同步队列等待，与独占式的主要区别是在同一时刻可以有多个线程获取到同步状态
      * Acquires in shared mode, ignoring interrupts.  Implemented by
      * first invoking at least once {@link #tryAcquireShared},
      * returning on success.  Otherwise the thread is queued, possibly
@@ -1284,6 +1306,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式获取同步状态，响应中断
      * Acquires in shared mode, aborting if interrupted.  Implemented
      * by first checking interrupt status, then invoking at least once
      * {@link #tryAcquireShared}, returning on success.  Otherwise the
@@ -1305,6 +1328,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式获取同步状态，增加超时限制。
      * Attempts to acquire in shared mode, aborting if interrupted, and
      * failing if the given timeout elapses.  Implemented by first
      * checking interrupt status, then invoking at least once {@link
@@ -1329,6 +1353,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享式释放同步状态
      * Releases in shared mode.  Implemented by unblocking one or more
      * threads if {@link #tryReleaseShared} returns true.
      *
