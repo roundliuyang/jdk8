@@ -302,6 +302,7 @@ public abstract class AbstractQueuedSynchronizer
     protected AbstractQueuedSynchronizer() { }
 
     /**
+     * 在 CLH 同步队列中，一个节点（Node），表示一个线程，它保存着线程的引用（thread）、状态（waitStatus）、前驱节点（prev）、后继节点（next）
      * Wait queue node class.
      *
      * <p>The wait queue is a variant of a "CLH" (Craig, Landin, and
@@ -381,24 +382,41 @@ public abstract class AbstractQueuedSynchronizer
      * on the design of this class.
      */
     static final class Node {
-        /** Marker to indicate a node is waiting in shared mode */
+        /**
+         * 共享
+         * Marker to indicate a node is waiting in shared mode
+         */
         static final Node SHARED = new Node();
-        /** Marker to indicate a node is waiting in exclusive mode */
+        /**
+         * 独占
+         * Marker to indicate a node is waiting in exclusive mode
+         */
         static final Node EXCLUSIVE = null;
 
-        /** waitStatus value to indicate thread has cancelled */
+        /**
+         * 因为超时或者中断，节点会被设置为取消状态，被取消的节点时不会参与到竞争中的，他会一直保持取消状态不会转变为其他状态
+         * waitStatus value to indicate thread has cancelled
+         */
         static final int CANCELLED =  1;
-        /** waitStatus value to indicate successor's thread needs unparking */
+        /**
+         * 后继节点的线程处于等待状态，而当前节点的线程如果释放了同步状态或者被取消，将会通知后继节点，使后继节点的线程得以运行
+         * waitStatus value to indicate successor's thread needs unparking
+         */
         static final int SIGNAL    = -1;
-        /** waitStatus value to indicate thread is waiting on condition */
+        /**
+         * 节点在等待队列中，节点线程等待在Condition上，当其他线程对Condition调用了signal()后，该节点将会从等待队列中转移到同步队列中，加入到同步状态的获取中
+         * waitStatus value to indicate thread is waiting on condition
+         */
         static final int CONDITION = -2;
         /**
+         * 表示下一次共享式同步状态获取，将会无条件地传播下去
          * waitStatus value to indicate the next acquireShared should
          * unconditionally propagate
          */
         static final int PROPAGATE = -3;
 
         /**
+         * 等待状态
          * Status field, taking on only the values:
          *   SIGNAL:     The successor of this node is (or will soon be)
          *               blocked (via park), so the current node must
@@ -435,6 +453,7 @@ public abstract class AbstractQueuedSynchronizer
         volatile int waitStatus;
 
         /**
+         * 前驱节点，当节点添加到同步队列时被设置（尾部添加）
          * Link to predecessor node that current node/thread relies on
          * for checking waitStatus. Assigned during enqueuing, and nulled
          * out (for sake of GC) only upon dequeuing.  Also, upon
@@ -448,6 +467,7 @@ public abstract class AbstractQueuedSynchronizer
         volatile Node prev;
 
         /**
+         * 后继节点
          * Link to the successor node that the current node/thread
          * unparks upon release. Assigned during enqueuing, adjusted
          * when bypassing cancelled predecessors, and nulled out (for
@@ -463,12 +483,14 @@ public abstract class AbstractQueuedSynchronizer
         volatile Node next;
 
         /**
+         * 获取同步状态的线程
          * The thread that enqueued this node.  Initialized on
          * construction and nulled out after use.
          */
         volatile Thread thread;
 
         /**
+         * 等待队列中的后续节点。如果当前节点是共享的，那么字段将是一个 SHARED 常量，也就是说节点类型（独占和共享）和等待队列中的后续节点共用同一个字段
          * Link to next node waiting on condition, or the special
          * value SHARED.  Because condition queues are accessed only
          * when holding in exclusive mode, we just need a simple
@@ -593,14 +615,21 @@ public abstract class AbstractQueuedSynchronizer
      * @return node's predecessor
      */
     private Node enq(final Node node) {
+        // 多次尝试，直到成功为止
         for (;;) {
+            // 记录原尾节点
             Node t = tail;
+            // 原尾节点不存在，创建首尾节点都为 new Node()
             if (t == null) { // Must initialize
                 if (compareAndSetHead(new Node()))
                     tail = head;
+            // 原尾节点存在，添加新节点为尾节点
             } else {
+                // 设置为尾节点
                 node.prev = t;
+                // CAS 设置新的尾节点
                 if (compareAndSetTail(t, node)) {
+                    // 成功，原尾节点的下一个节点为新节点
                     t.next = node;
                     return t;
                 }
@@ -609,27 +638,37 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 通过 CAS 的方式，来保证正确的添加 Node
      * Creates and enqueues node for current thread and given mode.
      *
      * @param mode Node.EXCLUSIVE for exclusive, Node.SHARED for shared
      * @return the new node
      */
     private Node addWaiter(Node mode) {
+        // 新建节点
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
+        // 记录原尾节点
         Node pred = tail;
+        // 快速尝试，添加新节点为尾节点
         if (pred != null) {
+            // 设置新 Node 节点的尾节点为原尾节点
             node.prev = pred;
+            // CAS 设置新的尾节点
             if (compareAndSetTail(pred, node)) {
+                // 成功，原尾节点的下一个节点为新节点
                 pred.next = node;
                 return node;
             }
         }
+        // 失败，多次尝试，直到成功
         enq(node);
         return node;
     }
 
     /**
+     * CLH 同步队列遵循 FIFO，首节点的线程释放同步状态后，将会唤醒它的下一个节点（Node.next）。而后继节点将会在获取同步状态成功时，将自己设置为首节点( head )。
+     * 这个过程非常简单，head 执行该节点并断开原首节点的 next 和当前节点的 prev 即可。注意，在这个过程是不需要使用 CAS 来保证的，因为只有一个线程，能够成功获取到同步状态。
      * Sets head of queue to be node, thus dequeuing. Called only by
      * acquire methods.  Also nulls out unused fields for sake of GC
      * and to suppress unnecessary signals and traversals.
@@ -2313,6 +2352,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 使用 Unsafe 来 CAS 设置尾节点 tail 为新节点使用 Unsafe 来 CAS 设置尾节点 tail 为新节点
      * CAS tail field. Used only by enq.
      */
     private final boolean compareAndSetTail(Node expect, Node update) {
