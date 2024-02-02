@@ -795,6 +795,7 @@ public abstract class AbstractQueuedSynchronizer
         if (node == null)
             return;
 
+        // 将节点的等待线程置空
         node.thread = null;
 
         // Skip cancelled predecessors
@@ -898,6 +899,7 @@ public abstract class AbstractQueuedSynchronizer
      */
 
     /**
+     * 为一个自旋的过程，也就是说，当前线程（Node）进入同步队列后，就会进入一个自旋的过程，每个节点都会自省地观察，当条件满足，获取到同步状态后，就可以从这个自旋过程中退出，否则会一直执行下去。
      * Acquires in exclusive uninterruptible mode for thread already in
      * queue. Used by condition wait methods as well as acquire.
      *
@@ -906,22 +908,31 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if interrupted while waiting
      */
     final boolean acquireQueued(final Node node, int arg) {
+        // 记录是否获取同步状态成功
         boolean failed = true;
         try {
+            // 记录过程中，是否发生线程中断
             boolean interrupted = false;
+            /**
+             * 自旋过程，其实就是一个死循环而已
+             */
             for (;;) {
+                // 当前线程的前驱节点
                 final Node p = node.predecessor();
+                // 当前线程的前驱节点是头结点，且同步状态成功
                 if (p == head && tryAcquire(arg)) {
                     setHead(node);
                     p.next = null; // help GC
                     failed = false;
                     return interrupted;
                 }
+                // 获取失败，线程等待--具体后面介绍
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     interrupted = true;
             }
         } finally {
+            // 获取同步状态发生异常，取消获取。
             if (failed)
                 cancelAcquire(node);
         }
@@ -997,14 +1008,17 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg the acquire argument
      */
     private void doAcquireShared(int arg) {
+        // 共享式节点
         final Node node = addWaiter(Node.SHARED);
         boolean failed = true;
         try {
             boolean interrupted = false;
             for (;;) {
+                // 前驱节点
                 final Node p = node.predecessor();
                 if (p == head) {
                     int r = tryAcquireShared(arg);
+                    // 尝试获取同步
                     if (r >= 0) {
                         setHeadAndPropagate(node, r);
                         p.next = null; // help GC
@@ -1239,7 +1253,8 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * 独占式获取同步状态。如果当前线程获取同步状态成功，则由该方法返回；否则，将会进入同步队列等待。该方法将会调用可重写的 #tryAcquire(int arg) 方法
+     * 独占式获取同步状态。如果当前线程获取同步状态成功，则由该方法返回；否则，将会进入同步队列等待。该方法将会调用可重写的 #tryAcquire(int arg) 方法。
+     * 但是该方法对中断不敏感。也就是说，由于线程获取同步状态失败而加入到 CLH 同步队列中，后续对该线程进行中断操作时，线程不会从 CLH 同步队列中移除
      * Acquires in exclusive mode, ignoring interrupts.  Implemented
      * by invoking at least once {@link #tryAcquire},
      * returning on success.  Otherwise the thread is queued, possibly
@@ -1252,7 +1267,11 @@ public abstract class AbstractQueuedSynchronizer
      *        can represent anything you like.
      */
     public final void acquire(int arg) {
+        // 调用 #tryAcquire(int arg) 方法，去尝试获取同步状态，获取成功则设置锁状态并返回 true ，否则获取失败，返回 false 。
         if (!tryAcquire(arg) &&
+                // 调用 #addWaiter(Node mode) 方法，将当前线程加入到 CLH 同步队列尾部。并且， mode 方法参数为 Node.EXCLUSIVE ，表示独占模式。
+                // 调用 boolean #acquireQueued(Node node, int arg) 方法，自旋直到获得同步状态成功,另外，该方法的返回值类型为 boolean ，
+                // 当返回 true 时，表示在这个过程中，发生过线程中断。但是呢，这个方法又会清理线程中断的标识，所以在种情况下，需要调用【第 4 行】的 #selfInterrupt() 方法，恢复线程中断的标识
             acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
             selfInterrupt();
     }
@@ -1274,9 +1293,12 @@ public abstract class AbstractQueuedSynchronizer
      */
     public final void acquireInterruptibly(int arg)
             throws InterruptedException {
+        // 校验该线程是否已经中断了，如果是，则抛出InterruptedException 异常
         if (Thread.interrupted())
             throw new InterruptedException();
+        // 调用 #tryAcquire(int arg) 方法，尝试获取同步状态，如果获取成功，则直接返回
         if (!tryAcquire(arg))
+            // 调用 #doAcquireInterruptibly(int arg) 方法，自旋直到获得同步状态成功，或线程中断抛出 InterruptedException 异常
             doAcquireInterruptibly(arg);
     }
 
@@ -1340,6 +1362,7 @@ public abstract class AbstractQueuedSynchronizer
      *        and can represent anything you like.
      */
     public final void acquireShared(int arg) {
+        // 尝试获取同步状态，获取成功则设置锁状态并返回大于等于 0 ，否则获取失败，返回小于 0
         if (tryAcquireShared(arg) < 0)
             doAcquireShared(arg);
     }
