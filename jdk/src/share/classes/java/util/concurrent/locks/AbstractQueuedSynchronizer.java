@@ -1569,6 +1569,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 判断当前线程是否位于 CLH 同步队列中的第一个。如果是则返回 true ，否则返回 false
      * Queries whether any threads have been waiting to acquire longer
      * than the current thread.
      *
@@ -1615,9 +1616,13 @@ public abstract class AbstractQueuedSynchronizer
         // The correctness of this depends on head being initialized
         // before tail and on head.next being accurate if the current
         // thread is first in queue.
-        Node t = tail; // Read fields in reverse initialization order
-        Node h = head;
+        Node t = tail; // Read fields in reverse initialization order     尾节点
+        Node h = head;    // 头节点
         Node s;
+
+        // 头节点 != 尾节点
+        // 同步队列第一个节点不为null
+        // 当前线程是同步队列第一个节点
         return h != t &&
             ((s = h.next) == null || s.thread != Thread.currentThread());
     }

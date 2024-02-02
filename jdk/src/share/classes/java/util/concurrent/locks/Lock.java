@@ -167,6 +167,7 @@ import java.util.concurrent.TimeUnit;
 public interface Lock {
 
     /**
+     * 获取锁，调用该方法当前线程将会获取锁，当锁获得后，从该方法返回
      * Acquires the lock.
      *
      * <p>If the lock is not available then the current thread becomes
@@ -184,6 +185,7 @@ public interface Lock {
     void lock();
 
     /**
+     * 可中断地获取锁，和lock()方法的不同之处在于该方法会响应中断，即在锁的获取中可以中断当前线程
      * Acquires the lock unless the current thread is
      * {@linkplain Thread#interrupt interrupted}.
      *
@@ -232,6 +234,7 @@ public interface Lock {
     void lockInterruptibly() throws InterruptedException;
 
     /**
+     * 尝试非阻塞的获取锁，调用该方法后立即返回，如果能够获取则返回true,否则返回false
      * Acquires the lock only if it is free at the time of invocation.
      *
      * <p>Acquires the lock if it is available and returns immediately
@@ -261,6 +264,10 @@ public interface Lock {
     boolean tryLock();
 
     /**
+     * 超时的获取锁，当前线程在以下三种情况会返回：
+     * 1.当前线程在超时时间内获得了锁
+     * 2.当前线程在超时时间内被中断
+     * 3.超时时间结束，返回false
      * Acquires the lock if it is free within the given waiting time and the
      * current thread has not been {@linkplain Thread#interrupt interrupted}.
      *
@@ -321,6 +328,7 @@ public interface Lock {
     boolean tryLock(long time, TimeUnit unit) throws InterruptedException;
 
     /**
+     * 释放锁
      * Releases the lock.
      *
      * <p><b>Implementation Considerations</b>
@@ -335,6 +343,7 @@ public interface Lock {
     void unlock();
 
     /**
+     * 获取等待通知组件，该组件和当前的锁绑定，当前线程只有获得了锁，才能调用该组件的wait()方法，而调用后，当前线程将释放锁
      * Returns a new {@link Condition} instance that is bound to this
      * {@code Lock} instance.
      *
