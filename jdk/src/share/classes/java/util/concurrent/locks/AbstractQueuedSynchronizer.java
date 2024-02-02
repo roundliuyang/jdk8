@@ -688,27 +688,34 @@ public abstract class AbstractQueuedSynchronizer
      */
     private void unparkSuccessor(Node node) {
         /*
+         * 当前节点状态
          * If status is negative (i.e., possibly needing signal) try
          * to clear in anticipation of signalling.  It is OK if this
          * fails or if status is changed by waiting thread.
          */
         int ws = node.waitStatus;
+        // 当前状态 < 0,则设置为 0
         if (ws < 0)
             compareAndSetWaitStatus(node, ws, 0);
 
         /*
+         * 当前节点的后继节点
          * Thread to unpark is held in successor, which is normally
          * just the next node.  But if cancelled or apparently null,
          * traverse backwards from tail to find the actual
          * non-cancelled successor.
          */
         Node s = node.next;
+        // 后继节点为null或者其状态 > 0 (超时或者被中断了)
         if (s == null || s.waitStatus > 0) {
             s = null;
+            // 从tail节点来找可用节点
             for (Node t = tail; t != null && t != node; t = t.prev)
                 if (t.waitStatus <= 0)
                     s = t;
         }
+
+        // 唤醒后继节点
         if (s != null)
             LockSupport.unpark(s.thread);
     }
@@ -885,7 +892,14 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if interrupted
      */
     private final boolean parkAndCheckInterrupt() {
+        // 将当前线程挂起，此时就进入阻塞等待唤醒的状态
         LockSupport.park(this);
+        /**
+         * 在线程被唤醒时，调用 Thread#interrupted() 方法，返回当前线程是否被打断，并清理打断状态
+         * 实际上，线程被唤醒有两种情况：
+         * •第一种，当前节点(线程)的前序节点释放同步状态时，唤醒了该线程。
+         * •第二种，当前线程被打断导致唤醒。
+         */
         return Thread.interrupted();
     }
 
@@ -926,8 +940,9 @@ public abstract class AbstractQueuedSynchronizer
                     failed = false;
                     return interrupted;
                 }
-                // 获取失败，线程等待--具体后面介绍
+                // 在获取同步状态失败后，线程并不是立马进行阻塞，需要检查该线程的状态，检查状态的方法为 #shouldParkAfterFailedAcquire(Node pred, Node node)方法，该方法主要靠前驱节点判断当前线程是否应该被阻塞
                 if (shouldParkAfterFailedAcquire(p, node) &&
+                    // 阻塞当前线程
                     parkAndCheckInterrupt())
                     interrupted = true;
             }
@@ -1343,7 +1358,7 @@ public abstract class AbstractQueuedSynchronizer
         if (tryRelease(arg)) {
             Node h = head;
             if (h != null && h.waitStatus != 0)
-                unparkSuccessor(h);
+                unparkSuccessor(h);   // 唤醒后继节点
             return true;
         }
         return false;

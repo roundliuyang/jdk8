@@ -37,6 +37,9 @@ package java.util.concurrent.locks;
 import sun.misc.Unsafe;
 
 /**
+ * 从上面我可以看到，当需要阻塞或者唤醒一个线程的时候，AQS 都是使用 LockSupport 这个工具类来完成的。
+ * LockSupport 是用来创建锁和其他同步类的基本线程阻塞原语。
+ *
  * Basic thread blocking primitives for creating locks and other
  * synchronization classes.
  *
@@ -126,6 +129,7 @@ public class LockSupport {
     }
 
     /**
+     * 如果给定县城的许可尚不可用，则使其可用
      * Makes available the permit for the given thread, if it
      * was not already available.  If the thread was blocked on
      * {@code park} then it will unblock.  Otherwise, its next call
@@ -142,6 +146,7 @@ public class LockSupport {
     }
 
     /**
+     * 为了线程调度，在许可可用之前禁用当前线程
      * Disables the current thread for thread scheduling purposes unless the
      * permit is available.
      *
@@ -276,6 +281,7 @@ public class LockSupport {
     }
 
     /**
+     * 阻塞当前线程，如果调用unpark(Thread thread)方法或者该线程被中断，才会从park()方法返回
      * Disables the current thread for thread scheduling purposes unless the
      * permit is available.
      *
