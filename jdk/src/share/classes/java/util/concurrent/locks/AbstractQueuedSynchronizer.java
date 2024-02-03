@@ -1065,6 +1065,9 @@ public abstract class AbstractQueuedSynchronizer
             for (;;) {
                 final Node p = node.predecessor();
                 if (p == head) {
+                    /**
+                     * 对于CountDownLatch而言，如果计数器值不等于0，那么r 会一直小于0
+                     */
                     int r = tryAcquireShared(arg);
                     if (r >= 0) {
                         setHeadAndPropagate(node, r);
@@ -1073,6 +1076,7 @@ public abstract class AbstractQueuedSynchronizer
                         return;
                     }
                 }
+                // 等待
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     throw new InterruptedException();
@@ -1400,6 +1404,10 @@ public abstract class AbstractQueuedSynchronizer
             throws InterruptedException {
         if (Thread.interrupted())
             throw new InterruptedException();
+        /*
+         * getState() 方法，获取同步状态，其值等于计数器的值。从这里我们可以看到，如果计数器值不等于 0，则会调用 #doAcquireSharedInterruptibly(int arg) 方法。
+         * 该方法为一个自旋方法会尝试一直去获取同步状态
+         */
         if (tryAcquireShared(arg) < 0)
             doAcquireSharedInterruptibly(arg);
     }

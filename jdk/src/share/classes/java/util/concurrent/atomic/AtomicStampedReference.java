@@ -49,6 +49,9 @@ package java.util.concurrent.atomic;
  */
 public class AtomicStampedReference<V> {
 
+    /**
+     * Pair 记录了对象的引用和版本戳，版本戳为 int 型，保持自增。同时 Pair 是一个不可变对象，其所有属性全部定义为 final 。
+     */
     private static class Pair<T> {
         final T reference;
         final int stamp;
@@ -61,6 +64,7 @@ public class AtomicStampedReference<V> {
         }
     }
 
+    // 定义为 volatile ，保证多线程环境下的可见性
     private volatile Pair<V> pair;
 
     /**
@@ -131,6 +135,7 @@ public class AtomicStampedReference<V> {
     }
 
     /**
+     * 有四个方法参数，分别表示：预期引用、更新后的引用、预期标志、更新后的标志
      * Atomically sets the value of both the reference and stamp
      * to the given update values if the
      * current reference is {@code ==} to the expected reference
@@ -148,10 +153,14 @@ public class AtomicStampedReference<V> {
                                  int newStamp) {
         Pair<V> current = pair;
         return
+            // 预期的引用 == 当前引用
             expectedReference == current.reference &&
+            // 预期的标识 == 当前标识
             expectedStamp == current.stamp &&
+            // 如果更新后的引用和标志和当前的引用和标志相等，则直接返回 true
             ((newReference == current.reference &&
               newStamp == current.stamp) ||
+             // 通过 Pair#of(T reference, int stamp) 方法，生成一个新的 Pair 对象，与当前 Pair CAS 替换。
              casPair(current, Pair.of(newReference, newStamp)));
     }
 

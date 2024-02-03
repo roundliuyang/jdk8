@@ -165,14 +165,17 @@ public class CountDownLatch {
             setState(count);
         }
 
+        // 获取同步状态
         int getCount() {
             return getState();
         }
 
+        // 获取同步状态，其值等于计数器的值
         protected int tryAcquireShared(int acquires) {
             return (getState() == 0) ? 1 : -1;
         }
 
+        // 释放同步状态
         protected boolean tryReleaseShared(int releases) {
             // Decrement count; signal when transition to zero
             for (;;) {
@@ -189,6 +192,7 @@ public class CountDownLatch {
     private final Sync sync;
 
     /**
+     * 构造一个用给定计数初始化的 CountDownLatch
      * Constructs a {@code CountDownLatch} initialized with the given count.
      *
      * @param count the number of times {@link #countDown} must be invoked
@@ -201,6 +205,7 @@ public class CountDownLatch {
     }
 
     /**
+     * 来使当前线程在锁存器倒计数至零之前一直等待，除非线程被中断
      * Causes the current thread to wait until the latch has counted down to
      * zero, unless the thread is {@linkplain Thread#interrupt interrupted}.
      *
@@ -228,10 +233,12 @@ public class CountDownLatch {
      *         while waiting
      */
     public void await() throws InterruptedException {
+        // 调用 AQS 的 tryAcquireSharedNanos(int acquires, long nanosTimeout) 方法，逻辑和 await 类似
         sync.acquireSharedInterruptibly(1);
     }
 
     /**
+     * 使当前线程在锁存器倒计数至零之前一直等待，除非线程被中断，或者等待超时
      * Causes the current thread to wait until the latch has counted down to
      * zero, unless the thread is {@linkplain Thread#interrupt interrupted},
      * or the specified waiting time elapses.
@@ -278,6 +285,7 @@ public class CountDownLatch {
     }
 
     /**
+     * 递减锁存器的计数。如果计数到达零，则唤醒所有等待的线程
      * Decrements the count of the latch, releasing all waiting threads if
      * the count reaches zero.
      *
@@ -288,6 +296,7 @@ public class CountDownLatch {
      * <p>If the current count equals zero then nothing happens.
      */
     public void countDown() {
+        // 内部调用 AQS 的 #releaseShared(int arg) 方法，来释放共享锁同步状态
         sync.releaseShared(1);
     }
 

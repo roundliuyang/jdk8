@@ -1029,6 +1029,9 @@ public final class Unsafe {
         int v;
         do {
             v = getIntVolatile(o, offset);
+        /*
+         * 该方法为本地方法，有四个参数，分别代表：对象、对象的地址、预期值、修改值
+         */
         } while (!compareAndSwapInt(o, offset, v, v + delta));
         return v;
     }
