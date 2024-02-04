@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.Queue;
 
 /**
+ * 为阻塞队列的核心接口，提供了在多线程环境下的出列、入列操作。作为使用者，则不需要关心队列在什么时候阻塞线程，什么时候唤醒线程，所有一切均由 BlockingQueue 来完成。
  * A {@link java.util.Queue} that additionally supports operations
  * that wait for the queue to become non-empty when retrieving an
  * element, and wait for space to become available in the queue when
