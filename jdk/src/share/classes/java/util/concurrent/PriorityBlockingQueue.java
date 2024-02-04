@@ -50,6 +50,10 @@ import java.util.Spliterator;
 import java.util.function.Consumer;
 
 /**
+ * PriorityBlockingQueue采用二叉堆来维护，所以整个处理过程不是很复杂，添加操作则是不断“上冒”，而删除操作则是不断“下掉”。
+ * 掌握二叉堆就掌握了PriorityBlockingQueue，无论怎么变还是不离其宗。对于PriorityBlockingQueue需要注意的是他是一个无界队列，
+ * 所以添加操作是不会失败的，除非资源耗尽。
+ *
  * An unbounded {@linkplain BlockingQueue blocking queue} that uses
  * the same ordering rules as class {@link PriorityQueue} and supplies
  * blocking retrieval operations.  While this queue is logically
@@ -127,11 +131,13 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      */
 
     /**
+     * 默认容量
      * Default array capacity.
      */
     private static final int DEFAULT_INITIAL_CAPACITY = 11;
 
     /**
+     * 最大容量
      * The maximum size of array to allocate.
      * Some VMs reserve some header words in an array.
      * Attempts to allocate larger arrays may result in
@@ -140,6 +146,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
     /**
+     * 二叉堆数组
      * Priority queue represented as a balanced binary heap: the two
      * children of queue[n] are queue[2*n+1] and queue[2*(n+1)].  The
      * priority queue is ordered by comparator, or by the elements'
@@ -150,22 +157,27 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
     private transient Object[] queue;
 
     /**
+     *  队列元素的个数
      * The number of elements in the priority queue.
      */
     private transient int size;
 
     /**
+     * 比较器，如果为空，则为自然顺序
      * The comparator, or null if priority queue uses elements'
      * natural ordering.
      */
     private transient Comparator<? super E> comparator;
 
     /**
+     * 内部锁
      * Lock used for all public operations
      */
     private final ReentrantLock lock;
 
     /**
+     * 内部仍然采用可重入锁ReentrantLock来实现同步机制，但是这里只有一个notEmpty的Condition，了解了ArrayBlockingQueue我们知道它定义了两个Condition，
+     * 之类为何只有一个呢？原因就在于PriorityBlockingQueue是一个无界队列，插入总是会成功，除非消耗尽了资源导致服务器挂。
      * Condition for blocking when empty
      */
     private final Condition notEmpty;
@@ -176,6 +188,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
     private transient volatile int allocationSpinLock;
 
     /**
+     * 优先队列：主要用于序列化，这是为了兼容之前的版本。只有在序列化和反序列化才非空
      * A plain PriorityQueue used only for serialization,
      * to maintain compatibility with previous versions
      * of this class. Non-null only during serialization/deserialization.
@@ -286,20 +299,23 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      * @param oldCap the length of the array
      */
     private void tryGrow(Object[] array, int oldCap) {
-        lock.unlock(); // must release and then re-acquire main lock
+        lock.unlock(); // must release and then re-acquire main lock   扩容操作使用自旋，不需要锁主锁，释放
         Object[] newArray = null;
+        // CAS 占用
         if (allocationSpinLock == 0 &&
             UNSAFE.compareAndSwapInt(this, allocationSpinLockOffset,
                                      0, 1)) {
+            // 新容量  最小翻倍
             try {
                 int newCap = oldCap + ((oldCap < 64) ?
                                        (oldCap + 2) : // grow faster if small
                                        (oldCap >> 1));
+                // 超过
                 if (newCap - MAX_ARRAY_SIZE > 0) {    // possible overflow
                     int minCap = oldCap + 1;
                     if (minCap < 0 || minCap > MAX_ARRAY_SIZE)
                         throw new OutOfMemoryError();
-                    newCap = MAX_ARRAY_SIZE;
+                    newCap = MAX_ARRAY_SIZE;    // 最大容量
                 }
                 if (newCap > oldCap && queue == array)
                     newArray = new Object[newCap];
@@ -307,9 +323,12 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
                 allocationSpinLock = 0;
             }
         }
+        // 到这里如果是本线程扩容newArray肯定是不为null，为null就是其他线程在处理扩容，那就让给别的线程处理
         if (newArray == null) // back off if another thread is allocating
             Thread.yield();
+        // 主锁获取锁
         lock.lock();
+        // 数组复制
         if (newArray != null && queue == array) {
             queue = newArray;
             System.arraycopy(array, 0, newArray, 0, oldCap);
@@ -320,16 +339,20 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      * Mechanics for poll().  Call only while holding lock.
      */
     private E dequeue() {
+        // 没有元素 返回null
         int n = size - 1;
         if (n < 0)
             return null;
         else {
             Object[] array = queue;
+            // 出对元素
             E result = (E) array[0];
             E x = (E) array[n];
             array[n] = null;
+            // 根据比较器释放为null，来执行不同的处理
             Comparator<? super E> cmp = comparator;
             if (cmp == null)
+                // 如果比较器为null，则调用siftDownComparable来进行自然排序处理
                 siftDownComparable(0, x, array, n);
             else
                 siftDownUsingComparator(0, x, array, n, cmp);
@@ -475,21 +498,27 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      * @throws NullPointerException if the specified element is null
      */
     public boolean offer(E e) {
+        // 不能为null
         if (e == null)
             throw new NullPointerException();
         final ReentrantLock lock = this.lock;
+        // 获取锁
         lock.lock();
         int n, cap;
         Object[] array;
+        // 扩容
         while ((n = size) >= (cap = (array = queue).length))
             tryGrow(array, cap);
         try {
             Comparator<? super E> cmp = comparator;
+            // 根据比较器是否为null，做不同的处理
             if (cmp == null)
+                //  当比较器comparator为null时，采用自然排序，调用siftUpComparable方法
                 siftUpComparable(n, e, array);
             else
                 siftUpUsingComparator(n, e, array, cmp);
             size = n + 1;
+            // 唤醒正在等待的消费者线程
             notEmpty.signal();
         } finally {
             lock.unlock();
@@ -508,6 +537,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      * @throws NullPointerException if the specified element is null
      */
     public void put(E e) {
+        // PriorityBlockingQueue是无界的，所以不可能会阻塞。内部调用offer(E e)：
         offer(e); // never need to block
     }
 
