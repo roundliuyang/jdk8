@@ -42,6 +42,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 
 /**
+ * SynchronousQueue没有容量。与其他BlockingQueue不同，SynchronousQueue是一个不存储元素的BlockingQueue。每一个put操作必须要等待一个take操作，否则不能继续添加元素，反之亦然
  * A {@linkplain BlockingQueue blocking queue} in which each insert
  * operation must wait for a corresponding remove operation by another
  * thread, and vice versa.  A synchronous queue does not have any
@@ -167,6 +168,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      */
     abstract static class Transferer<E> {
         /**
+         * 该方法定义了转移数据的规范
          * Performs a put or take.
          *
          * @param e if non-null, the item to be handed to a consumer;
@@ -230,9 +232,13 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
 
         /** Node class for TransferStacks. */
         static final class SNode {
+            // next 域
             volatile SNode next;        // next node in stack
+            // 相匹配的节点
             volatile SNode match;       // the node matched to this
+            // 等待的线程
             volatile Thread waiter;     // to control park/unpark
+            // item 域
             Object item;                // data; or null for REQUESTs
             int mode;
             // Note: item and mode fields don't need to be volatile
@@ -522,7 +528,10 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
         }
     }
 
-    /** Dual Queue */
+    /**
+     * TransferQueue是实现公平性策略的核心类，其节点为QNode
+     * Dual Queue
+     */
     static final class TransferQueue<E> extends Transferer<E> {
         /*
          * This extends Scherer-Scott dual queue algorithm, differing,
@@ -535,9 +544,13 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
 
         /** Node class for TransferQueue. */
         static final class QNode {
+            // next 域
             volatile QNode next;          // next node in queue
+            // item 数据项
             volatile Object item;         // CAS'ed to or from null
+            // 等待线程，用于park/unpark
             volatile Thread waiter;       // to control park/unpark
+            // 模式，表示当前是数据还是请求，只有当匹配的模式相匹配时才会交换
             final boolean isData;
 
             QNode(Object item, boolean isData) {
@@ -545,23 +558,33 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                 this.isData = isData;
             }
 
+            /**
+             * CAS next域，在TransferQueue中用于向next推进
+             */
             boolean casNext(QNode cmp, QNode val) {
                 return next == cmp &&
                     UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
             }
 
+            /**
+             * CAS itme数据项
+             */
             boolean casItem(Object cmp, Object val) {
                 return item == cmp &&
                     UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
             }
 
             /**
+             * 取消本结点，将item域设置为自身
              * Tries to cancel by CAS'ing ref to this as item.
              */
             void tryCancel(Object cmp) {
                 UNSAFE.compareAndSwapObject(this, itemOffset, cmp, this);
             }
 
+            /**
+             * 是否被取消
+             */
             boolean isCancelled() {
                 return item == this;
             }
@@ -594,11 +617,19 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
             }
         }
 
-        /** Head of queue */
+        /**
+         * 头结点
+         * Head of queue
+         */
         transient volatile QNode head;
-        /** Tail of queue */
+        /**
+         * 尾节点
+         * Tail of queue
+         */
         transient volatile QNode tail;
         /**
+         * 指向一个取消的结点
+         * 当一个节点中最后一个插入时，它被取消了但是可能还没有离开队列
          * Reference to a cancelled node that might not yet have been
          * unlinked from queue because it was the last inserted node
          * when it was cancelled.
@@ -862,6 +893,8 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      *        access; otherwise the order is unspecified.
      */
     public SynchronousQueue(boolean fair) {
+        // 通过 fair 值来决定公平性和非公平性
+        // 公平性使用TransferQueue，非公平性采用TransferStack
         transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
     }
 
