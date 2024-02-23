@@ -1045,13 +1045,17 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @param completedAbruptly if the worker died due to user exception
      */
     private void processWorkerExit(Worker w, boolean completedAbruptly) {
+        // true：用户线程运行异常,需要扣减
+        // false：getTask方法中扣减线程数量
         if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
             decrementWorkerCount();
 
         final ReentrantLock mainLock = this.mainLock;
+        // 获取主锁
         mainLock.lock();
         try {
             completedTaskCount += w.completedTasks;
+            // 从HashSet中移出worker
             workers.remove(w);
         } finally {
             mainLock.unlock();
@@ -1122,7 +1126,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 // 如果需要超时控制，则调用poll()，否则调用take()
                 Runnable r = timed ?
                     workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) :
-                    workQueue.take();
+                    workQueue.take();     // 该方法为一个阻塞方法，没有任务时会一直阻塞挂起，直到有任务加入时对该线程唤醒，返回任务
                 if (r != null)
                     return r;
                 timedOut = true;
@@ -1223,6 +1227,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
             completedAbruptly = false;
         } finally {
+            // 对worker进行退出处理
             processWorkerExit(w, completedAbruptly);
         }
     }

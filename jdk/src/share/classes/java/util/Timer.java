@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Timer {
     /**
+     * 任务队列，该队列保存要执行的 TimerTask
      * The timer task queue.  This data structure is shared with the timer
      * thread.  The timer produces tasks, via its various schedule calls,
      * and the timer thread consumes, executing timer tasks as appropriate,
@@ -96,6 +97,7 @@ public class Timer {
     private final TaskQueue queue = new TaskQueue();
 
     /**
+     * 继承自 Thread 类。它负责从队列中获取任务并执行它们
      * The timer thread.
      */
     private final TimerThread thread = new TimerThread(queue);
@@ -177,6 +179,7 @@ public class Timer {
     }
 
     /**
+     * 发布一定延迟时间后执行的任务
      * Schedules the specified task for execution after the specified delay.
      *
      * @param task  task to be scheduled.
@@ -194,6 +197,7 @@ public class Timer {
     }
 
     /**
+     * 发布指定日期执行的任务
      * Schedules the specified task for execution at the specified time.  If
      * the time is in the past, the task is scheduled for immediate execution.
      *
@@ -209,6 +213,7 @@ public class Timer {
     }
 
     /**
+     * 发布一定延迟时间后，随后以周期 period 执行任务，每次执行都是相对于前一次执行的实际执行时间来安排的。
      * Schedules the specified task for repeated <i>fixed-delay execution</i>,
      * beginning after the specified delay.  Subsequent executions take place
      * at approximately regular intervals separated by the specified period.
@@ -249,6 +254,7 @@ public class Timer {
     }
 
     /**
+     * 发布指定日期后首次执行任务，随后以周期 period 执行任务。
      * Schedules the specified task for repeated <i>fixed-delay execution</i>,
      * beginning at the specified time. Subsequent executions take place at
      * approximately regular intervals, separated by the specified period.
@@ -489,6 +495,7 @@ class TimerThread extends Thread {
     boolean newTasksMayBeScheduled = true;
 
     /**
+     * 它实现了计时器的任务执行线程。这个线程负责等待计时器队列上的任务，当任务触发时执行它们，重新安排重复任务，并从队列中删除已取消的任务和已完成的非重复任务。
      * Our Timer's queue.  We store this reference in preference to
      * a reference to the Timer so the reference graph remains acyclic.
      * Otherwise, the Timer would never be garbage-collected and this
@@ -538,20 +545,20 @@ class TimerThread extends Thread {
                         currentTime = System.currentTimeMillis();
                         executionTime = task.nextExecutionTime;
                         if (taskFired = (executionTime<=currentTime)) {
-                            if (task.period == 0) { // Non-repeating, remove
+                            if (task.period == 0) { // Non-repeating, remove  非重复任务，删除
                                 queue.removeMin();
                                 task.state = TimerTask.EXECUTED;
-                            } else { // Repeating task, reschedule
+                            } else { // Repeating task, reschedule    重复任务，重新执行
                                 queue.rescheduleMin(
                                   task.period<0 ? currentTime   - task.period
                                                 : executionTime + task.period);
                             }
                         }
                     }
-                    if (!taskFired) // Task hasn't yet fired; wait
+                    if (!taskFired) // Task hasn't yet fired; wait  任务尚未启动; 等待
                         queue.wait(executionTime - currentTime);
                 }
-                if (taskFired)  // Task fired; run it, holding no locks
+                if (taskFired)  // Task fired; run it, holding no locks  任务已启动
                     task.run();
             } catch(InterruptedException e) {
             }

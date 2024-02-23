@@ -40,28 +40,33 @@ public abstract class TimerTask implements Runnable {
     final Object lock = new Object();
 
     /**
+     * 此任务的状态，从下面的常量中选择
      * The state of this task, chosen from the constants below.
      */
     int state = VIRGIN;
 
     /**
+     * 这个任务还没有被安排
      * This task has not yet been scheduled.
      */
     static final int VIRGIN = 0;
 
     /**
+     * 计划执行该任务。如果它是非重复任务，则表示尚未执行
      * This task is scheduled for execution.  If it is a non-repeating task,
      * it has not yet been executed.
      */
     static final int SCHEDULED   = 1;
 
     /**
+     * 此非重复任务已执行(或当前正在执行)，且未被取消。
      * This non-repeating task has already executed (or is currently
      * executing) and has not been cancelled.
      */
     static final int EXECUTED    = 2;
 
     /**
+     * 这个任务已经被取消(调用TimerTask.cancel)
      * This task has been cancelled (with a call to TimerTask.cancel).
      */
     static final int CANCELLED   = 3;
@@ -74,6 +79,8 @@ public abstract class TimerTask implements Runnable {
     long nextExecutionTime;
 
     /**
+     * 周期(以毫秒为单位)用于重复任务。正值表示固定速率执行。负值表示固定延迟执行。
+     *  0表示非重复任务
      * Period in milliseconds for repeating tasks.  A positive value indicates
      * fixed-rate execution.  A negative value indicates fixed-delay execution.
      * A value of 0 indicates a non-repeating task.
