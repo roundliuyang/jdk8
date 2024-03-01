@@ -617,8 +617,11 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * exported).  Otherwise, keys and vals are never null.
      */
     static class Node<K,V> implements Map.Entry<K,V> {
+        // key的hash值
         final int hash;
+        // key
         final K key;
+        // value, 在扩容时发生变化, 所以加上volatile保持可见性和禁止重排序
         volatile V val;
         volatile Node<K,V> next;
 
@@ -647,6 +650,9 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         }
 
         /**
+         * 遍历next查找
+         * @param h key的hash值
+         * @param k key        
          * Virtualized support for map.get(); overridden in subclasses.
          */
         Node<K,V> find(int h, Object k) {
@@ -666,6 +672,10 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     /* ---------------- Static utilities -------------- */
 
     /**
+     * 通过key的hashCode计算在数组中的位置
+     * @param h key的hashCode
+     * @return 位置         
+     *          
      * Spreads (XORs) higher bits of hash to lower and also forces top
      * bit to 0. Because the table uses power-of-two masking, sets of
      * hashes that vary only in bits above the current mask will
@@ -750,11 +760,32 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * writes to be conservative.
      */
 
+    /**
+     * 这个方法是获取tab指定位置的元素。功能上类似: tab[i]的功能,
+     * 但是这个使用了volatile, 表示可见性, 如果其他线程对tab操作了, 那么这里是可见的
+     * @param tab  tab数组
+     * @param i    通常是(tab.length - 1) & hashCode
+     * @param <K>  key
+     * @param <V>  value
+     * @return
+     */
     @SuppressWarnings("unchecked")
     static final <K,V> Node<K,V> tabAt(Node<K,V>[] tab, int i) {
+        // 这里使用Unsafe.getObjectVolatile()获取指定位置上的元素，利用的是volatile语义来保证可见性。
         return (Node<K,V>)U.getObjectVolatile(tab, ((long)i << ASHIFT) + ABASE);
     }
 
+    /**
+     * 通过CAS算法添加tab数组中指定位置的数据
+     * @param tab   tab数组
+     * @param i     hash值
+     * @param c     原始值
+     * @param v     value, 添加的Node数据
+     * @param <K>   key
+     * @param <V>   value
+     * @return     是否添加成功
+     * 使用CAS保存元素，可以通过返回值判断是否挣用位置成功，即是否存储成功。
+     */
     static final <K,V> boolean casTabAt(Node<K,V>[] tab, int i,
                                         Node<K,V> c, Node<K,V> v) {
         return U.compareAndSwapObject(tab, ((long)i << ASHIFT) + ABASE, c, v);
@@ -785,6 +816,9 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     private transient volatile long baseCount;
 
     /**
+     * sizeCtl是一个volatile 修饰的int类型的值，sizeCtl有多层含义：
+     * 为正数时表示下一次扩容的大小
+     * 负数：-1表示正在初始化；其他负值表示数组正在移动
      * Table initialization and resizing control.  When negative, the
      * table is being initialized or resized: -1 for initialization,
      * else -(1 + the number of active resizing threads).  Otherwise,
@@ -872,6 +906,10 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
+     * @param initialCapacity 初始化大小
+     * @param loadFactor 负载因子       
+     * @param concurrencyLevel 并发级别            
+     *                        
      * Creates a new, empty map with an initial table size based on
      * the given number of elements ({@code initialCapacity}), table
      * density ({@code loadFactor}), and number of concurrently
@@ -933,18 +971,22 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      */
     public V get(Object key) {
         Node<K,V>[] tab; Node<K,V> e, p; int n, eh; K ek;
-        int h = spread(key.hashCode());
-        if ((tab = table) != null && (n = tab.length) > 0 &&
+        int h = spread(key.hashCode());           //计算在数组中的位置index
+        if ((tab = table) != null && (n = tab.length) > 0 &&        // 首先数组不能为空
             (e = tabAt(tab, (n - 1) & h)) != null) {
+            // key的hashCode与当前要找的key的hashCode一样
             if ((eh = e.hash) == h) {
                 if ((ek = e.key) == key || (ek != null && key.equals(ek)))
                     return e.val;
             }
-            else if (eh < 0)
+            else if (eh < 0)         // 遍历next查找(数组正在移动)
+                // 哈希值为负数，表示数组正在移动，通过Node.find(int, Object) 方法继续查找，而find(int, Object) 方法我们在上文中介绍过，
+                // 这里表示调用的是ForwardingNode.find(int, Object)。
                 return (p = e.find(h, key)) != null ? p.val : null;
-            while ((e = e.next) != null) {
+            while ((e = e.next) != null) {     // 如果当前存在next节点, 说明在put时发生了碰撞问题, 遍历链表查找
                 if (e.hash == h &&
-                    ((ek = e.key) == key || (ek != null && key.equals(ek))))
+                    ((ek = e.key) == key || (ek != null && key.equals(ek))))    // 找到元素
+                    // 返回
                     return e.val;
             }
         }
@@ -1006,30 +1048,52 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         return putVal(key, value, false);
     }
 
+    /**
+     * put value操作
+     * @param key key
+     * @param value value
+     * @param onlyIfAbsent 如果当前key已经存在, 是否覆盖
+     * @return value
+     */
     /** Implementation for put and putIfAbsent */
     final V putVal(K key, V value, boolean onlyIfAbsent) {
+        // 判断key和value不能为空
         if (key == null || value == null) throw new NullPointerException();
-        int hash = spread(key.hashCode());
-        int binCount = 0;
-        for (Node<K,V>[] tab = table;;) {
+        int hash = spread(key.hashCode());     // 计算key的hash值
+        int binCount = 0;                      // 用来计算在这个节点总共有多少个元素, 用来控制扩容或转移为树
+        for (Node<K,V>[] tab = table;;) {      // 无限的for循环
             Node<K,V> f; int n, i, fh;
-            if (tab == null || (n = tab.length) == 0)
-                tab = initTable();
-            else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
-                if (casTabAt(tab, i, null,
+            if (tab == null || (n = tab.length) == 0)         // Node数组为空, 初始化数组操作(第一次put操作)
+                tab = initTable();   // 初始化数组
+            else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {   // 数组中没有找到, 那么直接添加即可
+                if (casTabAt(tab, i, null,                          // 通过CAS添加, 添加成功则break; 添加失败继续循环
                              new Node<K,V>(hash, key, value, null)))
-                    break;                   // no lock when adding to empty bin
+                    break;                   // no lock when adding to empty bin  //添加成功直接break退出循环
             }
-            else if ((fh = f.hash) == MOVED)
+            else if ((fh = f.hash) == MOVED)       // 如果数组正在移动中
+                /*
+                 * 如果检测到某个节点的hash值是MOVED的话,则表示正在进行数组扩容的复制数据的阶段。
+                 * 则当前线程也会参与去复制, 通过允许多线程复制的功能, 增加复制的效率
+                 */
                 tab = helpTransfer(tab, f);
-            else {
+            else {           // 如果数组中的指定位置存在值
+                /*
+                 * 如果在这个位置有元素的话, 就采用synchronized加锁:
+                 * 1、如果是链表的话(hash > 0), 就对这个链表的所有元素进行遍历:
+                 *  1.1 如果找到key和key.hash都是一样的话, 则替换
+                 *  1.2 如果没找到的话则添加到最后
+                 * 2、否则, 是树的话, 则调用putTreeVal方法添加到树中
+                 * 在添加完成之后, 会对该节点的数目进行判断:如果在8个以上的话, 则会调用treeifyBin方法尝试转换为树, 或者是扩容
+                 */
                 V oldVal = null;
-                synchronized (f) {
+                // 锁住节点
+                synchronized (f) {       // 锁住链表头
                     if (tabAt(tab, i) == f) {
-                        if (fh >= 0) {
+                        if (fh >= 0) {    // 大于0表示未发生数组移动
                             binCount = 1;
                             for (Node<K,V> e = f;; ++binCount) {
                                 K ek;
+                                // 链表头与待插入的元素是一样的
                                 if (e.hash == hash &&
                                     ((ek = e.key) == key ||
                                      (ek != null && key.equals(ek)))) {
@@ -1038,6 +1102,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                                         e.val = value;
                                     break;
                                 }
+                                // 链表头与待插入的元素不一样, 则发生了hash碰撞, 则放next元素放值
                                 Node<K,V> pred = e;
                                 if ((e = e.next) == null) {
                                     pred.next = new Node<K,V>(hash, key,
@@ -1046,7 +1111,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                                 }
                             }
                         }
-                        else if (f instanceof TreeBin) {
+                        else if (f instanceof TreeBin) {      //已经变成了红黑树, 则调用树的方法添加元素
                             Node<K,V> p;
                             binCount = 2;
                             if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,
@@ -1058,6 +1123,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                         }
                     }
                 }
+                // 转换为红黑树
                 if (binCount != 0) {
                     if (binCount >= TREEIFY_THRESHOLD)
                         treeifyBin(tab, i);
@@ -1067,7 +1133,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                 }
             }
         }
-        addCount(1L, binCount);
+        addCount(1L, binCount);   // 增加计数(可能数组移动)
         return null;
     }
 
@@ -2218,20 +2284,33 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
+     * 当第一次进行put的时候, Node数组(table)还没有初始化, 所以进行初始化操作。由于涉及到线程安全问题, 这里
+     * 初始化会保证初始化过程中的线程安全问题
+     * @return 初始化后的数组
      * Initializes table, using the size recorded in sizeCtl.
      */
     private final Node<K,V>[] initTable() {
-        Node<K,V>[] tab; int sc;
+        // 需要初始化的数组
+        Node<K,V>[] tab; 
+        int sc;
+        // 数组为空则一直循环, 直到数组不为空
         while ((tab = table) == null || tab.length == 0) {
+            // 如果为负数则表示有线程在初始化操作, 当前线程不做操作, 让出CPU空间
             if ((sc = sizeCtl) < 0)
+                // 让出CPU时间
                 Thread.yield(); // lost initialization race; just spin
+            // 不为负数, 则通过CAS将sizeCtl的值改为-1(此时sizeCtl的值为负数)
             else if (U.compareAndSwapInt(this, SIZECTL, sc, -1)) {
                 try {
+                    // 再判断一次数组是否为空, 为空才进行初始化
                     if ((tab = table) == null || tab.length == 0) {
-                        int n = (sc > 0) ? sc : DEFAULT_CAPACITY;
+                        int n = (sc > 0) ? sc : DEFAULT_CAPACITY;          // 数组的大小。默认大小为16
                         @SuppressWarnings("unchecked")
+                        // 初始化数组
                         Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n];
+                        // 赋值操作
                         table = tab = nt;
+                        // 计算下次扩容的大小
                         sc = n - (n >>> 2);
                     }
                 } finally {
@@ -2361,6 +2440,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
+     *  扩容操作
      * Moves and/or copies the nodes in each bin to new table. See
      * above for explanation.
      */
@@ -2605,6 +2685,9 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     /* ---------------- Conversion from/to TreeBins -------------- */
 
     /**
+     * 将指定的数组指定的位置对应的链表转换为红黑树的结构
+     * @param tab 数组
+     * @param index 位置        
      * Replaces all linked nodes in bin at given index unless table is
      * too small, in which case resizes instead.
      */
@@ -2614,8 +2697,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
             if ((n = tab.length) < MIN_TREEIFY_CAPACITY)
                 tryPresize(n << 1);
             else if ((b = tabAt(tab, index)) != null && b.hash >= 0) {
-                synchronized (b) {
-                    if (tabAt(tab, index) == b) {
+                synchronized (b) {       //锁住对应位置的头结点
+                    if (tabAt(tab, index) == b) {      // 锁住之后再次判断对应位置的元素未发生改变
                         TreeNode<K,V> hd = null, tl = null;
                         for (Node<K,V> e = b; e != null; e = e.next) {
                             TreeNode<K,V> p =
@@ -2668,39 +2751,51 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
             this.parent = parent;
         }
 
+        /**
+         * 查找节点
+         * @param h key的hash值
+         * @param k key
+         * @return 节点
+         */
         Node<K,V> find(int h, Object k) {
             return findTreeNode(h, k, null);
         }
 
         /**
+         * 查找节点
+         * @param h key的hash值
+         * @param k key         
          * Returns the TreeNode (or null if not found) for the given key
          * starting at given root.
          */
         final TreeNode<K,V> findTreeNode(int h, Object k, Class<?> kc) {
+            // key不为空才能进行查找
             if (k != null) {
+                //从当前开始
                 TreeNode<K,V> p = this;
                 do  {
                     int ph, dir; K pk; TreeNode<K,V> q;
                     TreeNode<K,V> pl = p.left, pr = p.right;
+                    // 要查找的key的hash小于当前的key的hash值, 那么说明要查找的在树的左边
                     if ((ph = p.hash) > h)
-                        p = pl;
-                    else if (ph < h)
+                        p = pl;      // 左子树
+                    else if (ph < h)     // 要查找的key的hash大于当前的key的hash值, 那么说明要查找的在树的右边
+                        p = pr;          // 右子树
+                    else if ((pk = p.key) == k || (pk != null && k.equals(pk)))    // 如果key相等或者相equals的话, 则当前的节点就是要找的节点
+                        return p;                                                  // 返回
+                    else if (pl == null)               // 左子树为null的话就遍历右子树
                         p = pr;
-                    else if ((pk = p.key) == k || (pk != null && k.equals(pk)))
-                        return p;
-                    else if (pl == null)
-                        p = pr;
-                    else if (pr == null)
+                    else if (pr == null)               // 右子树为空的话就遍历左子树
                         p = pl;
                     else if ((kc != null ||
                               (kc = comparableClassFor(k)) != null) &&
                              (dir = compareComparables(kc, k, pk)) != 0)
                         p = (dir < 0) ? pl : pr;
-                    else if ((q = pr.findTreeNode(h, k, kc)) != null)
+                    else if ((q = pr.findTreeNode(h, k, kc)) != null)       // 递归查找, 如果找到直接返回
                         return q;
                     else
                         p = pl;
-                } while (p != null);
+                } while (p != null);                  // 不为空则继续遍历, 直到遍历到树的尾节点
             }
             return null;
         }
