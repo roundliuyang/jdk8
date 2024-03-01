@@ -59,11 +59,13 @@ public abstract class AbstractOwnableSynchronizer
     protected AbstractOwnableSynchronizer() { }
 
     /**
+     * 独享的线程
      * The current owner of exclusive mode synchronization.
      */
     private transient Thread exclusiveOwnerThread;
 
     /**
+     * 设置独享线程
      * Sets the thread that currently owns exclusive access.
      * A {@code null} argument indicates that no thread owns access.
      * This method does not otherwise impose any synchronization or
@@ -75,6 +77,7 @@ public abstract class AbstractOwnableSynchronizer
     }
 
     /**
+     * 获取独享线程
      * Returns the thread last set by {@code setExclusiveOwnerThread},
      * or {@code null} if never set.  This method does not otherwise
      * impose any synchronization or {@code volatile} field accesses.

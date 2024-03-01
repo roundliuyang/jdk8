@@ -302,6 +302,7 @@ public abstract class AbstractQueuedSynchronizer
     protected AbstractQueuedSynchronizer() { }
 
     /**
+     * 这是一个队列, 这个队列是一个"CLH"锁队列。
      * 在 CLH 同步队列中，一个节点（Node），表示一个线程，它保存着线程的引用（thread）、状态（waitStatus）、前驱节点（prev）、后继节点（next）
      * Wait queue node class.
      *
@@ -383,12 +384,12 @@ public abstract class AbstractQueuedSynchronizer
      */
     static final class Node {
         /**
-         * 共享
+         * 表示线程以共享模式等待锁
          * Marker to indicate a node is waiting in shared mode
          */
         static final Node SHARED = new Node();
         /**
-         * 独占
+         * 表示线程正在以独占模式等待锁
          * Marker to indicate a node is waiting in exclusive mode
          */
         static final Node EXCLUSIVE = null;
@@ -399,7 +400,7 @@ public abstract class AbstractQueuedSynchronizer
          */
         static final int CANCELLED =  1;
         /**
-         * 后继节点的线程处于等待状态，而当前节点的线程如果释放了同步状态或者被取消，将会通知后继节点，使后继节点的线程得以运行
+         * 等待状态, 表示线程已经准备好了, 就等资源释放了
          * waitStatus value to indicate successor's thread needs unparking
          */
         static final int SIGNAL    = -1;
@@ -416,7 +417,13 @@ public abstract class AbstractQueuedSynchronizer
         static final int PROPAGATE = -3;
 
         /**
-         * 等待状态
+         * 当前节点在队列中的状态, 有如下几个值:
+         * 0: 当一个Node被初始化时候的默认值
+         * CANCELLED: 值为1, 表示线程获取锁的请求已经取消
+         * CONDITION: 值为-2, 表示节点在等待队列中, 节点线程等待唤醒
+         * PROPAGATE: 值为-3, 当线程处于SHARED情况下, 该字段才会使用
+         * SIGNAL: 值为-1, 表示线程已经准备好了, 就等资源释放了
+         * 
          * Status field, taking on only the values:
          *   SIGNAL:     The successor of this node is (or will soon be)
          *               blocked (via park), so the current node must
@@ -503,6 +510,7 @@ public abstract class AbstractQueuedSynchronizer
         Node nextWaiter;
 
         /**
+         * 判断是否是共享节点
          * Returns true if node is waiting in shared mode.
          */
         final boolean isShared() {
@@ -510,6 +518,9 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 返回前驱指针, 如果没有则报NPE异常
+         *  @return 前驱指针
+         *  @throws NullPointerException 异常
          * Returns previous node, or throws NullPointerException if null.
          * Use when predecessor cannot be null.  The null check could
          * be elided, but is present to help the VM.
@@ -527,11 +538,21 @@ public abstract class AbstractQueuedSynchronizer
         Node() {    // Used to establish initial head or SHARED marker
         }
 
+        /**
+         * 构造器
+         * @param thread 当前线程
+         * @param mode 下一个CONDITION节点的节点
+         */
         Node(Thread thread, Node mode) {     // Used by addWaiter
             this.nextWaiter = mode;
             this.thread = thread;
         }
 
+        /**
+         * 构造器
+         * @param thread 当前线程
+         * @param waitStatus 等待状态
+         */
         Node(Thread thread, int waitStatus) { // Used by Condition
             this.waitStatus = waitStatus;
             this.thread = thread;
@@ -539,6 +560,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 同步队列的队头
      * Head of the wait queue, lazily initialized.  Except for
      * initialization, it is modified only via method setHead.  Note:
      * If head exists, its waitStatus is guaranteed not to be
@@ -547,6 +569,7 @@ public abstract class AbstractQueuedSynchronizer
     private transient volatile Node head;
 
     /**
+     * 同步队列的队尾
      * Tail of the wait queue, lazily initialized.  Modified only via
      * method enq to add new wait node.
      */
@@ -1274,6 +1297,8 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * 独占式获取同步状态。如果当前线程获取同步状态成功，则由该方法返回；否则，将会进入同步队列等待。该方法将会调用可重写的 #tryAcquire(int arg) 方法。
      * 但是该方法对中断不敏感。也就是说，由于线程获取同步状态失败而加入到 CLH 同步队列中，后续对该线程进行中断操作时，线程不会从 CLH 同步队列中移除
+     * @param arg 计数器, 通常是1
+     *            
      * Acquires in exclusive mode, ignoring interrupts.  Implemented
      * by invoking at least once {@link #tryAcquire},
      * returning on success.  Otherwise the thread is queued, possibly
@@ -2399,6 +2424,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * Unsafe对象
      * Setup to support compareAndSet. We need to natively implement
      * this here: For the sake of permitting future enhancements, we
      * cannot explicitly subclass AtomicInteger, which would be
@@ -2408,10 +2434,15 @@ public abstract class AbstractQueuedSynchronizer
      * otherwise be done with atomic field updaters).
      */
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+    /** AbstractQueuedSynchronizer.state字段相对起始地址的偏移量 */
     private static final long stateOffset;
+    /** AbstractQueuedSynchronizer.head字段相对起始地址的偏移量 */
     private static final long headOffset;
+    /** AbstractQueuedSynchronizer.tail字段相对起始地址的偏移量 */
     private static final long tailOffset;
+    /** AbstractQueuedSynchronizer.waitStatus字段相对起始地址的偏移量 */
     private static final long waitStatusOffset;
+    /** AbstractQueuedSynchronizer.next字段相对起始地址的偏移量 */
     private static final long nextOffset;
 
     static {
