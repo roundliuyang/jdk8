@@ -94,6 +94,12 @@ package java.util.concurrent;
 public interface ScheduledExecutorService extends ExecutorService {
 
     /**
+     * 运行指定的命令一次
+     * @param command 命令
+     * @param delay 延迟多久后执行               
+     * @param unit 延迟的时间单位
+     * @return ScheduledFuture         
+     * 
      * Creates and executes a one-shot action that becomes enabled
      * after the given delay.
      *
@@ -111,6 +117,11 @@ public interface ScheduledExecutorService extends ExecutorService {
                                        long delay, TimeUnit unit);
 
     /**
+     * 运行指定的命令一次
+     * @param callable 命令
+     * @param delay 延迟多久后执行
+     * @param unit 延迟的时间单位
+     * @return ScheduledFuture             
      * Creates and executes a ScheduledFuture that becomes enabled after the
      * given delay.
      *
@@ -127,6 +138,13 @@ public interface ScheduledExecutorService extends ExecutorService {
                                            long delay, TimeUnit unit);
 
     /**
+     * 以固定的速率周期性调度指定的命令
+     * @param command 命令
+     * @param initialDelay 启动当前服务后延迟多久开始第一次执行命令        
+     * @param period 速率, 周期性调度时的速率                    
+     * @param unit initialDelay和period的时间单位
+     * @return ScheduledFuture            
+     *             
      * Creates and executes a periodic action that becomes enabled first
      * after the given initial delay, and subsequently with the given
      * period; that is executions will commence after
@@ -157,6 +175,15 @@ public interface ScheduledExecutorService extends ExecutorService {
                                                   TimeUnit unit);
 
     /**
+     * 周期性调度指定的命令。这个与上述{@link #scheduleAtFixedRate(Runnable, long, long, TimeUnit)}是有区别的,
+     * 上述{@link #scheduleAtFixedRate(Runnable, long, long, TimeUnit)}如果本身任务运行时长超过了指定的速率, 那么
+     * 下次运行命令时依然是按照指定的速率, 而当前方法不是, 当前方法是按照上次命令执行之后按照指定的延迟(delay)继续执行的
+     * @param command 命令
+     * @param initialDelay 启动当前服务后延迟多久开始第一次执行命令
+     * @param delay 延迟                    
+     * @param unit initialDelay和delay的时间单位
+     * @return ScheduledFuture            
+     *             
      * Creates and executes a periodic action that becomes enabled first
      * after the given initial delay, and subsequently with the
      * given delay between the termination of one execution and the

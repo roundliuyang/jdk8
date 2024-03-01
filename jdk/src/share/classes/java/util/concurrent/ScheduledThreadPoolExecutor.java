@@ -311,6 +311,8 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 延迟执行
+     * @param task 任务
      * Main execution method for delayed or periodic tasks.  If pool
      * is shut down, rejects the task. Otherwise adds task to queue
      * and starts a thread, if necessary, to run it.  (We cannot
@@ -325,13 +327,14 @@ public class ScheduledThreadPoolExecutor
         if (isShutdown())
             reject(task);
         else {
-            super.getQueue().add(task);
+            super.getQueue().add(task);     //存放到延迟队列
             if (isShutdown() &&
                 !canRunInCurrentRunState(task.isPeriodic()) &&
                 remove(task))
                 task.cancel(false);
+            //状态正常
             else
-                ensurePrestart();
+                ensurePrestart();    //运行任务
         }
     }
 
@@ -487,6 +490,10 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 计算下一次触发时间
+     * @param delay 延迟
+     * @param unit 单位
+     * @return 纳秒时间
      * Returns the trigger time of a delayed action.
      */
     private long triggerTime(long delay, TimeUnit unit) {
@@ -494,6 +501,9 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 计算触发时间
+     * @param delay 延迟(纳秒)
+     * @return 纳秒时间
      * Returns the trigger time of a delayed action.
      */
     long triggerTime(long delay) {
@@ -519,6 +529,11 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 运行指定的命令一次
+     * @param command 命令
+     * @param delay 延迟多久后执行
+     * @param unit 延迟的时间单位
+     * @return ScheduledFuture
      * @throws RejectedExecutionException {@inheritDoc}
      * @throws NullPointerException       {@inheritDoc}
      */
@@ -535,6 +550,12 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 运行指定的命令一次
+     * @param callable 命令
+     * @param delay 延迟多久后执行
+     * @param unit 延迟的时间单位
+     * @return ScheduledFuture
+     * 
      * @throws RejectedExecutionException {@inheritDoc}
      * @throws NullPointerException       {@inheritDoc}
      */
