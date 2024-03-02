@@ -2157,6 +2157,7 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 将条件等待队列的节点全部传输到AQS的阻塞队列中，最后由阻塞队列控制其唤醒操作
          * Moves all threads from the wait queue for this condition to
          * the wait queue for the owning lock.
          *
@@ -2250,7 +2251,8 @@ public abstract class AbstractQueuedSynchronizer
                 throw new InterruptedException();
             // 当前线程加入等待队列
             Node node = addConditionWaiter();
-            // 释放锁
+            
+            // 释放当前所有的锁(即将state置为0)并唤醒同步队列的队首线程
             int savedState = fullyRelease(node);
             int interruptMode = 0;
             /**

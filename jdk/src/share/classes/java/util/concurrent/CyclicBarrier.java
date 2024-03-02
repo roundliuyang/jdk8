@@ -39,6 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 它允许一组线程互相等待，直到到达某个公共屏障点 (Common Barrier Point)
+ * 从全局变量来看，CyclicBarrier并没有直接使用AQS，而是使用ReentrantLock和Condition完成主要的锁任务。
  * A synchronization aid that allows a set of threads to all wait for
  * each other to reach a common barrier point.  CyclicBarriers are
  * useful in programs involving a fixed sized party of threads that
@@ -139,6 +140,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class CyclicBarrier {
     /**
+     * 屏障的每次使用都有一个Generation实例。无论何时屏障发生了或者reset了, Generation的实例都会改变。
      * Each use of the barrier is represented as a generation instance.
      * The generation changes whenever the barrier is tripped, or
      * is reset. There can be many generations associated with threads
@@ -150,12 +152,12 @@ public class CyclicBarrier {
      * but no subsequent reset.
      */
     private static class Generation {
-        boolean broken = false;
+        boolean broken = false;     // 是否broken
     }
 
-    /** The lock for guarding barrier entry */
+    /** The lock for guarding barrier entry 互斥锁 */
     private final ReentrantLock lock = new ReentrantLock();
-    /** Condition to wait on until tripped */
+    /** Condition to wait on until tripped 条件队列 */
     private final Condition trip = lock.newCondition();
     /**
      * 表示拦截线程的总数量
@@ -167,7 +169,7 @@ public class CyclicBarrier {
      *  The command to run when tripped
      */
     private final Runnable barrierCommand;
-    /** The current generation */
+    /** The current generation 生成器, 表示当前是否broken */
     private Generation generation = new Generation();
 
     /**
@@ -179,18 +181,20 @@ public class CyclicBarrier {
     private int count;
 
     /**
+     * 更新Generation实例, 这里主要是可以重入的机制, 多次调用
      * Updates state on barrier trip and wakes up everyone.
      * Called only while holding lock.
      */
     private void nextGeneration() {
         // signal completion of last generation
-        trip.signalAll();
+        trip.signalAll();    // 唤醒所有的线程
         // set up next generation
-        count = parties;
-        generation = new Generation();
+        count = parties;    // 重置count值
+        generation = new Generation();   // 重新生成Generation实例
     }
 
     /**
+     * 将Generation.broken的状态置为true, 并且唤醒所有的线程
      * Sets current barrier generation as broken and wakes up everyone.
      * Called only while holding lock.
      */
@@ -201,6 +205,8 @@ public class CyclicBarrier {
     }
 
     /**
+     * @param timed 是否是超时的等待
+     * @param nanos 如果timed是true的话, 表示等待的时长
      * Main barrier code, covering the various policies.
      */
     private int dowait(boolean timed, long nanos)
@@ -227,15 +233,16 @@ public class CyclicBarrier {
 
             // 进来一个线程 count - 1
             int index = --count;
-            if (index == 0) {  // tripped
-                boolean ranAction = false;
+            if (index == 0) {  // tripped   // 当index为0的时候, 所有的线程已经运行完成, name就需要运行回调的屏障线程了
+                boolean ranAction = false;  // 是否运行成功
                 try {
+                    // 运行屏障线程的run方法
                     final Runnable command = barrierCommand;
                     // 触发任务
                     if (command != null)
                         command.run();
-                    ranAction = true;
-                    nextGeneration();
+                    ranAction = true;   // 没有异常证明运行完成
+                    nextGeneration();   // 唤醒所有线程并重置count、Generation实例
                     return 0;
                 } finally {
                     if (!ranAction)
@@ -244,28 +251,32 @@ public class CyclicBarrier {
             }
 
             // loop until tripped, broken, interrupted, or timed out
-            for (;;) {
+            /*
+             * 如果所有的线程没有运行完成, 那么就需要进一步处理(等待、超时等处理)
+             */
+            for (;;) {       // 死循环，进一步处理
                 try {
-                    if (!timed)
-                        trip.await();
-                    else if (nanos > 0L)
-                        nanos = trip.awaitNanos(nanos);
-                } catch (InterruptedException ie) {
+                    if (!timed)   // 没有超时时间的设置
+                        trip.await();       // 阻塞等待
+                    else if (nanos > 0L)    // 存在超时时间的设置
+                        nanos = trip.awaitNanos(nanos);   // 阻塞等待指定的时间
+                } catch (InterruptedException ie) {       //出现异常
                     if (g == generation && ! g.broken) {
-                        breakBarrier();
+                        breakBarrier();      // 改变generation实例的状态并唤醒所有的线程
                         throw ie;
                     } else {
                         // We're about to finish waiting even if we had not
                         // been interrupted, so this interrupt is deemed to
                         // "belong" to subsequent execution.
-                        Thread.currentThread().interrupt();
+                        Thread.currentThread().interrupt();   // 中断线程
                     }
                 }
 
-                // generation已经更新，返回index
+                // 如果有线程改变了Generation实例的状态了则抛出异常 //如果有线程改变了Generation实例的状态了则抛出异常 
                 if (g.broken)
                     throw new BrokenBarrierException();
 
+                // 如果此时有其他线程改变了Generation实例了, 说明不再需要操作了, 直接return操作
                 if (g != generation)
                     return index;
 
@@ -276,7 +287,7 @@ public class CyclicBarrier {
                 }
             }
         } finally {
-            lock.unlock();
+            lock.unlock();    // 释放锁
         }
     }
 
