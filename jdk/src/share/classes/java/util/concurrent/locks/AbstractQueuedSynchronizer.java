@@ -1127,23 +1127,24 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 获取共享锁的核心方法。正常是有线程占用锁的话才会进入此方法。具体是在{@link #acquireSharedInterruptibly(int)}中调用的
      * Acquires in shared interruptible mode.
-     * @param arg the acquire argument
+     * @param arg the acquire argument   锁计数
+     * @throws InterruptedException 异常           
      */
     private void doAcquireSharedInterruptibly(int arg)
         throws InterruptedException {
+        // 创建一个node, 并将node节点存放到tail节点上
         final Node node = addWaiter(Node.SHARED);
-        boolean failed = true;
+        boolean failed = true; // 是否添加到队列失败
         try {
-            for (;;) {
-                final Node p = node.predecessor();
+            for (;;) {        // 死循环保证添加成功
+                final Node p = node.predecessor();      // node节点的前一个节点
+                // 如果前一个节点是head节点, 证明当前线程前面已经没有线程排队了
                 if (p == head) {
-                    /**
-                     * 对于CountDownLatch而言，如果计数器值不等于0，那么r 会一直小于0
-                     */
                     int r = tryAcquireShared(arg);
-                    if (r >= 0) {
-                        setHeadAndPropagate(node, r);
+                    if (r >= 0) {        // 如果大于0的话, 通常来说已经没有线程占用锁了, 此时可以return了
+                        setHeadAndPropagate(node, r);    // 设置头节点并传播, 如果是共享模式的话, 则会唤醒所有等待的节点
                         p.next = null; // help GC
                         failed = false;
                         return;
@@ -1151,11 +1152,11 @@ public abstract class AbstractQueuedSynchronizer
                 }
                 // 等待
                 if (shouldParkAfterFailedAcquire(p, node) &&
-                    parkAndCheckInterrupt())
+                    parkAndCheckInterrupt())                     // 共享节点阻塞     
                     throw new InterruptedException();
             }
         } finally {
-            if (failed)
+            if (failed)         // 添加失败
                 cancelAcquire(node);
         }
     }
@@ -1482,10 +1483,7 @@ public abstract class AbstractQueuedSynchronizer
             throws InterruptedException {
         if (Thread.interrupted())
             throw new InterruptedException();
-        /*
-         * getState() 方法，获取同步状态，其值等于计数器的值。从这里我们可以看到，如果计数器值不等于 0，则会调用 #doAcquireSharedInterruptibly(int arg) 方法。
-         * 该方法为一个自旋方法会尝试一直去获取同步状态
-         */
+        // 为负数会让线程进入同步队列阻塞等待
         if (tryAcquireShared(arg) < 0)
             doAcquireSharedInterruptibly(arg);
     }

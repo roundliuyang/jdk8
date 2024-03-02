@@ -161,6 +161,7 @@ public class CountDownLatch {
     private static final class Sync extends AbstractQueuedSynchronizer {
         private static final long serialVersionUID = 4982264981922014374L;
 
+        // Sync只有一个构造器，传递的参数就是等待的线程数量，也就是AQS的state值
         Sync(int count) {
             setState(count);
         }
@@ -170,25 +171,39 @@ public class CountDownLatch {
             return getState();
         }
 
-        // 获取同步状态，其值等于计数器的值
+        /**
+         * 尝试获取共享锁。如果state为0的话(没有任何线程占用)则返回1, 否则(有线程占用)返回-1
+         * @param acquires  锁计数。这里没有作用
+         * @return 如果state为0的话(没有被占用)则返回1, 否则返回-1
+         */
         protected int tryAcquireShared(int acquires) {
             return (getState() == 0) ? 1 : -1;
         }
 
-        // 释放同步状态
+        /**
+         * 尝试释放共享锁
+         * 1、如果当前没有线程持有锁了, 即state为0, 直接返回false
+         * 2、对state递减, 然后将通过CAS将state值更新, 如果更新失败则继续自旋; 更新成功之后, 判断递减的state是否为0, 即完全释放完,
+         * 如果完全释放完, 那么返回true, 否则返回false
+         * 而我们在1、AbstractQueuedSynchronizer原理分析-2.6 releaseShared()释放共享锁 部分已经介绍过了，当tryReleaseShared()返回true的时候，就会唤醒所有的同步队列中阻塞等待的线程。
+         * @param releases 锁计数。这里没有作用
+         * @return 是否释放成功
+         */
         protected boolean tryReleaseShared(int releases) {
             // Decrement count; signal when transition to zero
-            for (;;) {
+            for (;;) {   // 自旋
+                // 如果state为0的话, 证明没有被占用, 则返回false
                 int c = getState();
                 if (c == 0)
                     return false;
-                int nextc = c-1;
-                if (compareAndSetState(c, nextc))
-                    return nextc == 0;
+                int nextc = c-1;   // 递减
+                if (compareAndSetState(c, nextc))      // 设置state(CAS, 因为是自旋所以直到设置成功为止)
+                    return nextc == 0;    // 完全释放完成返回true
             }
         }
     }
 
+    // 同步队列。这里是共享锁 
     private final Sync sync;
 
     /**
@@ -233,7 +248,7 @@ public class CountDownLatch {
      *         while waiting
      */
     public void await() throws InterruptedException {
-        // 调用 AQS 的 tryAcquireSharedNanos(int acquires, long nanosTimeout) 方法，逻辑和 await 类似
+        // 可中断获取共享锁 
         sync.acquireSharedInterruptibly(1);
     }
 
