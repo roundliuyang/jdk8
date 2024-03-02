@@ -1369,6 +1369,8 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * 与 #acquire(int arg) 相同，但是该方法响应中断。当前线程为获取到同步状态而进入到同步队列中，如果当前线程被中断，则该方法会抛出InterruptedException 异常并返回。
+     *  @param arg 计数器
+     *             
      * Acquires in exclusive mode, aborting if interrupted.
      * Implemented by first checking interrupt status, then invoking
      * at least once {@link #tryAcquire}, returning on
