@@ -166,6 +166,10 @@ public class Semaphore implements java.io.Serializable {
     abstract static class Sync extends AbstractQueuedSynchronizer {
         private static final long serialVersionUID = 1192457210091910933L;
 
+        /**
+         * 构造器
+         * @param permits 同时允许多少个线程并发运行。即AQS的state值
+         */
         Sync(int permits) {
             setState(permits);
         }
@@ -174,23 +178,35 @@ public class Semaphore implements java.io.Serializable {
             return getState();
         }
 
+        /**
+         * 尝试获取共享锁。这里如果返回负数的话, 证明当前线程需要进行阻塞等待
+         * @param acquires 锁计数
+         * @return  加锁后的state
+         */
         final int nonfairTryAcquireShared(int acquires) {
             for (;;) {
-                int available = getState();
-                int remaining = available - acquires;
-                if (remaining < 0 ||
-                    compareAndSetState(available, remaining))
+                int available = getState();   // state值
+                int remaining = available - acquires;  // state相减
+                if (remaining < 0 ||               // 小于0表示当前state值为0
+                    compareAndSetState(available, remaining))     // 或者更新state值成功
                     return remaining;
             }
         }
 
+        /**
+         * 尝试释放锁
+         * 这里很简单，就是对state值增加指定的数量（不能是负数），对state值进行CAS操作成功则返回true，操作失败则自旋。而如果返回true则唤醒被阻塞的线程。
+         * @param releases 锁计数
+         * @return true/false
+         */
         protected final boolean tryReleaseShared(int releases) {
             for (;;) {
-                int current = getState();
-                int next = current + releases;
-                if (next < current) // overflow
+                int current = getState();  // 当前state值
+                int next = current + releases;  // 相加
+                // releases不能为负数 
+                if (next < current) // overflow   
                     throw new Error("Maximum permit count exceeded");
-                if (compareAndSetState(current, next))
+                if (compareAndSetState(current, next))   // 更新成功返回true
                     return true;
             }
         }
@@ -225,6 +241,11 @@ public class Semaphore implements java.io.Serializable {
             super(permits);
         }
 
+        /**
+         * 尝试获取共享锁
+         * @param acquires 锁计数
+         * @return 加锁后的state
+         */
         protected int tryAcquireShared(int acquires) {
             return nonfairTryAcquireShared(acquires);
         }
@@ -240,20 +261,27 @@ public class Semaphore implements java.io.Serializable {
             super(permits);
         }
 
+        /**
+         * 尝试获取锁。这里是在{@link #acquireShared(int)}中调用的, 如果返回负数, 则表示获取锁失败, 当前线程需要阻塞
+         * @param acquires 锁的数量
+         * @return 负数表示线程需要等待
+         */
         protected int tryAcquireShared(int acquires) {
             for (;;) {
-                if (hasQueuedPredecessors())
+                if (hasQueuedPredecessors())   // 当前线程需要加入阻塞等待
                     return -1;
-                int available = getState();
-                int remaining = available - acquires;
-                if (remaining < 0 ||
-                    compareAndSetState(available, remaining))
+                int available = getState();   // state值
+                int remaining = available - acquires;   // 相减
+                if (remaining < 0 ||   // 为负数表示当前state为0
+                    compareAndSetState(available, remaining))   // 或者更新state成功
                     return remaining;
             }
         }
     }
 
     /**
+     * 构造器
+     * @param permits 同时运行的线程数
      * Creates a {@code Semaphore} with the given number of
      * permits and nonfair fairness setting.
      *
@@ -266,6 +294,9 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 构造器
+     * @param permits 同时运行的线程数
+     * @param fair 是否是公平队列               
      * Creates a {@code Semaphore} with the given number of
      * permits and the given fairness setting.
      *
@@ -281,6 +312,9 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 获取锁, 这里是以共享的方式且不能中断的方式获取锁, 如果线程中断的话就会抛出异常
+     * @throws InterruptedException 异常
+     * 
      * Acquires a permit from this semaphore, blocking until one is
      * available, or the thread is {@linkplain Thread#interrupt interrupted}.
      *
@@ -313,6 +347,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 获取锁, 这里是以共享的方式获取锁。不关心线程是否中断
      * Acquires a permit from this semaphore, blocking until one is
      * available.
      *
@@ -410,6 +445,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 释放锁
      * Releases a permit, returning it to the semaphore.
      *
      * <p>Releases a permit, increasing the number of available permits by
@@ -427,6 +463,9 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 一次性获取多把锁, 这里是以共享的方式且不能中断的方式获取锁, 如果线程中断的话就会抛出异常
+     * @param permits 获取锁的数量
+     * @throws InterruptedException 异常               
      * Acquires the given number of permits from this semaphore,
      * blocking until all are available,
      * or the thread is {@linkplain Thread#interrupt interrupted}.
@@ -468,6 +507,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 一次性获取多把锁, 这里是以共享的方式获取锁。不关心线程是否中断
      * Acquires the given number of permits from this semaphore,
      * blocking until all are available.
      *
@@ -583,6 +623,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 一次性释放多把锁
      * Releases the given number of permits, returning them to the semaphore.
      *
      * <p>Releases the given number of permits, increasing the number of
@@ -606,6 +647,7 @@ public class Semaphore implements java.io.Serializable {
      */
     public void release(int permits) {
         if (permits < 0) throw new IllegalArgumentException();
+        // 如果方法返回true则唤醒被阻塞的线程，否则不做操作
         sync.releaseShared(permits);
     }
 
