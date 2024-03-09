@@ -737,10 +737,10 @@ public abstract class AbstractQueuedSynchronizer
          * non-cancelled successor.
          */
         Node s = node.next;
-        // 后继节点为null或者其状态 > 0 (超时或者被中断了)
+        // 当前节点没有下一个节点或者下一个节点是取消状态(CANCELLED)
         if (s == null || s.waitStatus > 0) {
             s = null;
-            // 从tail节点来找可用节点
+            // 从队尾往队头遍历, 直到遍历node节点
             for (Node t = tail; t != null && t != node; t = t.prev)
                 if (t.waitStatus <= 0)
                     s = t;
@@ -960,6 +960,7 @@ public abstract class AbstractQueuedSynchronizer
          * •第一种，当前节点(线程)的前序节点释放同步状态时，唤醒了该线程。
          * •第二种，当前线程被打断导致唤醒。
          */
+        // 检查是否被中断, 清除中断状态, 并返回中断标志
         return Thread.interrupted();
     }
 
@@ -1365,7 +1366,7 @@ public abstract class AbstractQueuedSynchronizer
         // 调用 #tryAcquire(int arg) 方法，去尝试获取同步状态，获取成功则设置锁状态并返回 true ，否则获取失败，返回 false 。
         if (!tryAcquire(arg) &&
             acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
-            selfInterrupt();    //将当前线程挂起
+            selfInterrupt();    //这里需要调用selfInterrupt()重新产生一个中断，因为之前Thread.interrupted()清除中断状态了
     }
 
     /**
