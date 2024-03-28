@@ -1482,9 +1482,10 @@ public abstract class AbstractQueuedSynchronizer
      */
     public final void acquireSharedInterruptibly(int arg)
             throws InterruptedException {
+        // 检测线程是否是中断, 如果是中断则抛出异常
         if (Thread.interrupted())
             throw new InterruptedException();
-        // 为负数会让线程进入同步队列阻塞等待
+        // 尝试获取共享锁, 如果有线程占用的话会小于0(即获取不到锁则进入if代码块)
         if (tryAcquireShared(arg) < 0)
             doAcquireSharedInterruptibly(arg);
     }
