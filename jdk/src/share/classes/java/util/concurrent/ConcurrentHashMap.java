@@ -779,12 +779,9 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * 通过CAS算法添加tab数组中指定位置的数据
      * @param tab   tab数组
      * @param i     hash值
-     * @param c     原始值
-     * @param v     value, 添加的Node数据
-     * @param <K>   key
-     * @param <V>   value
+     * @param c     预期值
+     * @param v     新值
      * @return     是否添加成功
-     * 使用CAS保存元素，可以通过返回值判断是否挣用位置成功，即是否存储成功。
      */
     static final <K,V> boolean casTabAt(Node<K,V>[] tab, int i,
                                         Node<K,V> c, Node<K,V> v) {

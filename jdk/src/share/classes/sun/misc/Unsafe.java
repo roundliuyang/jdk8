@@ -866,6 +866,9 @@ public final class Unsafe {
 
 
     /**
+     * 更新变量值为x，如果当前值为expected
+     * o：对象 offset：偏移量 expected：期望值 x：新值
+     * 
      * Atomically update Java variable to <tt>x</tt> if it is currently
      * holding <tt>expected</tt>.
      * @return <tt>true</tt> if successful
