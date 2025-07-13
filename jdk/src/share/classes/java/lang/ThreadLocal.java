@@ -434,8 +434,11 @@ public class ThreadLocal<T> {
          * @return the entry associated with key, or null if no such
          */
         private Entry getEntry(ThreadLocal<?> key) {
+            // 首先是计算索引位置i
             int i = key.threadLocalHashCode & (table.length - 1);
             Entry e = table[i];
+            // 根据获取Entry，如果Entry存在且Entry的key恰巧等于ThreadLocal，那么直接返回Entry对象，
+            // 否则，也就是在此位置上找不到对应的Entry，那么就调用getEntryAfterMiss
             if (e != null && e.get() == key)
                 return e;
             else
@@ -457,10 +460,15 @@ public class ThreadLocal<T> {
 
             while (e != null) {
                 ThreadLocal<?> k = e.get();
+                // 如果k==key,那么代表找到了这个所需要的Entry，直接返回
                 if (k == key)
                     return e;
+                // 如果k==null，那么证明这个Entry中key已经为null,那么这个Entry就是一个过期对象，这里调用expungeStaleEntry清理该Entry。
+                // 这里解答了前面留下的一个坑，即ThreadLocal Ref销毁时，ThreadLocal实例由于只有Entry中的一条弱引用指着，那么就会被GC掉，Entry的key没了，
+                // value可能会内存泄露的，其实在每一个get，set操作时都会不断清理掉这种key为null的Entry的。
                 if (k == null)
                     expungeStaleEntry(i);
+                // 如果e一直不为空，那么就调用nextIndex，不断递增i
                 else
                     i = nextIndex(i, len);
                 e = tab[i];
@@ -605,6 +613,10 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 这段代码主要有两部分：
+         * expunge entry at staleSlot：这段主要是将i位置上的Entry的value设为null，Entry的引用也设为null，那么系统GC的时候自然会清理掉这块内存；
+         * Rehash until we encounter null: 这段就是扫描位置staleSlot之后，null之前的Entry数组，清除每一个key为null的Entry，同时若是key不为空，做rehash，调整其位置。
+         *
          * Expunge a stale entry by rehashing any possibly colliding entries
          * lying between staleSlot and the next null slot.  This also expunges
          * any other stale entries encountered before the trailing null.  See
